@@ -33,7 +33,7 @@ if grep -q "alias ctx=" "$ZSHRC"; then
 else
   {
     printf '\n# Painel de contexto das sessões do Claude (ver ~/.claude/ctx-watch.sh)\n'
-    printf "alias ctx='watch -n 5 -c bash ~/.claude/ctx-watch.sh'\n"
+    printf "alias ctx='bash ~/.claude/ctx-watch.sh --watch'\n"
   } >> "$ZSHRC"
   echo "  alias adicionado."
 fi
@@ -42,4 +42,4 @@ echo
 echo "✓ Pronto."
 echo "  • Abra um terminal novo (ou rode: source ~/.zshrc) e use:  ctx"
 echo "  • A status line aparece no modo terminal/CLI do Claude (não no painel gráfico)."
-echo "  • 'watch' é necessário para o alias: no macOS, 'brew install watch'."
+echo "  • 'ctx' mostra as sessões ativas ao vivo (Ctrl+C p/ sair); 'ctx --all' inclui as inativas."

@@ -11,8 +11,7 @@ cd ~/dev/dotfiles
 ./install.sh
 ```
 
-Pré-requisitos: `node` (já vem com o Claude Code) e, para o alias `ctx`, o utilitário
-`watch` (Linux já tem; no macOS: `brew install watch`).
+Pré-requisito: `node` (já vem com o Claude Code).
 
 ## Conteúdo
 
@@ -21,10 +20,10 @@ Pré-requisitos: `node` (já vem com o Claude Code) e, para o alias `ctx`, o uti
 | Arquivo | O que é | Vai para |
 |---|---|---|
 | `statusline-command.sh` | Status line: `modelo · ctx% · 5h% · [git] · path`, com cores por limiar. Parseia o JSON com `node` (não depende de `jq`). | `~/.claude/statusline-command.sh` |
-| `ctx-watch.sh` | Painel que mostra a ocupação de contexto de todas as sessões do Claude de um projeto (lendo os transcripts). Detecta o projeto pelo diretório atual. | `~/.claude/ctx-watch.sh` |
+| `ctx-watch.sh` | Painel ao vivo do contexto de **todas as sessões ativas** do Claude no sistema (de qualquer diretório). Mostra modelo, repo/pasta, idade e % de uso — com a janela (200k/1M) **inferida por sessão**. | `~/.claude/ctx-watch.sh` |
 | `statusline.settings.json` | Só o bloco `statusLine`. O `install.sh` o **mescla** no `~/.claude/settings.json` sem apagar o resto. | (merge) |
 
-Alias adicionado ao `~/.zshrc`: `ctx` → painel de contexto ao vivo (`Ctrl+C` para sair).
+Alias adicionado ao `~/.zshrc`: `ctx` → painel ao vivo (`Ctrl+C` para sair). `ctx --all` inclui as sessões inativas.
 
 ## Notas
 
@@ -32,3 +31,6 @@ Alias adicionado ao `~/.zshrc`: `ctx` → painel de contexto ao vivo (`Ctrl+C` p
   da extensão (o painel tem o próprio indicador de contexto na caixa de prompt).
 - `ctx-watch.sh` lê o formato interno dos transcripts (`~/.claude/projects/...`), que é
   não-oficial e pode mudar entre versões do Claude Code.
+- O `ctx` é dirigido a eventos (`fs.watch`): atualiza no instante em que uma sessão grava
+  um turno — não depende do utilitário `watch`. A janela do % é inferida por sessão (o
+  transcript não guarda esse dado): 1M se a sessão já passou de 200k, senão 200k.
