@@ -30,6 +30,12 @@ const ALL = process.argv.includes("--all");
 const WATCH = process.argv.includes("--watch") || process.argv.includes("-w");
 const HOME = os.homedir();
 
+let effortLevel = "";
+try {
+  const cfg = JSON.parse(fs.readFileSync(path.join(HOME, ".claude", "settings.json"), "utf8"));
+  effortLevel = cfg.effortLevel || "";
+} catch (e) {}
+
 // ---------- roots de transcripts (WSL + host Windows, se houver) ----------
 function roots() {
   const r = [], add = p => { try { if (fs.statSync(p).isDirectory()) r.push(p); } catch {} };
@@ -211,7 +217,9 @@ function render() {
   }
   const n = rows.length, liveN = rows.filter(r => r.live).length;
   const stat = ALL ? (n + " sessões, " + liveN + " ativa(s) ●") : (n + " sessão(ões) ativa(s)");
-  out += "\x1b[2m" + stat + " · janela inferida por sessão" +
+  const efColor = { low: 32, medium: 33, high: 35 }[effortLevel] || 37;
+  const efTag = effortLevel ? " · \x1b[" + efColor + "mef:" + effortLevel + "\x1b[2m" : "";
+  out += "\x1b[2m" + stat + efTag + " · janela inferida por sessão" +
          (WATCH ? " · ao vivo " + clock() + " · Ctrl+C p/ sair" : "") + "\x1b[0m\n";
   return out;
 }
