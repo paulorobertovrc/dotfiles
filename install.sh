@@ -8,10 +8,11 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 
-echo "→ Copiando scripts para $CLAUDE_DIR"
+echo "→ Copiando arquivos para $CLAUDE_DIR"
 mkdir -p "$CLAUDE_DIR"
 cp "$REPO_DIR/claude/statusline-command.sh" "$CLAUDE_DIR/statusline-command.sh"
 cp "$REPO_DIR/claude/ctx-watch.sh"          "$CLAUDE_DIR/ctx-watch.sh"
+cp "$REPO_DIR/claude/CLAUDE.md"             "$CLAUDE_DIR/CLAUDE.md"
 
 echo "→ Mesclando o bloco statusLine em $CLAUDE_DIR/settings.json (preserva o resto)"
 SETTINGS="$CLAUDE_DIR/settings.json" SNIPPET="$REPO_DIR/claude/statusline.settings.json" node -e '

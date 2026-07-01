@@ -19,6 +19,7 @@ Pré-requisito: `node` (já vem com o Claude Code).
 
 | Arquivo | O que é | Vai para |
 |---|---|---|
+| `CLAUDE.md` | Diretrizes globais (user-scope) de trabalho, **agnósticas de domínio** — valem em todo projeto. O CLAUDE.md de cada repo apenas soma o específico dele. | `~/.claude/CLAUDE.md` |
 | `statusline-command.sh` | Status line: `modelo · ctx% · 5h% · [git] · path`, com cores por limiar. Parseia o JSON com `node` (não depende de `jq`). | `~/.claude/statusline-command.sh` |
 | `ctx-watch.sh` | Painel ao vivo do contexto de **todas as sessões ativas** do Claude no sistema (de qualquer diretório). Mostra modelo, repo/pasta, idade e % de uso — com a janela (200k/1M) **inferida por sessão**. | `~/.claude/ctx-watch.sh` |
 | `statusline.settings.json` | Só o bloco `statusLine`. O `install.sh` o **mescla** no `~/.claude/settings.json` sem apagar o resto. | (merge) |
