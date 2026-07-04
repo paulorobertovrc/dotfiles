@@ -17,7 +17,10 @@
   subagents/workflows. Se o recomendado divergir do ativo, **PARAR** e aguardar a troca — nunca
   trocar sozinho, seja *upgrade* ou *downgrade*. Rubrica: modelo forte para design/arquitetura/correção
   crítica/raciocínio difícil (Fable no topo, para os problemas mais longos e difíceis); leve para
-  implementação padrão a partir de design travado.
+  implementação padrão a partir de design travado. **Decidir vs. executar:** tarefas mecânicas
+  (gravar memória, criar/mover tickets, transcrever escopo já fechado) rodam leve (Haiku),
+  independentemente do modelo que produziu a decisão; só sobe quando o próprio ato embute
+  julgamento (dedup/reorg ambíguo, redigir escopo do zero).
 - **Higiene de contexto:** sinalizar quando convém `/compact` — pontos de corte, antes de tarefas
   pesadas, sessão longa.
 - **Postura defensiva:** quando o custo é barato, quanto mais travas/validações, melhor.
