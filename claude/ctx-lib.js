@@ -160,7 +160,94 @@ function liveSessions(home = os.homedir(), opts = {}) {
   return out;
 }
 
+// Varredura única do transcript: deriva contexto, turnos, cache hit, transições de modo
+// e custo acumulado por-modelo. Cacheada por mtimeMs — releitura só quando o arquivo muda.
+const metricsCache = new Map(); // file -> {mtime, value}
+
+function sessionMetrics(file) {
+  let mtime = 0; try { mtime = fs.statSync(file).mtimeMs; } catch { return null; }
+  const hit = metricsCache.get(file);
+  if (hit && hit.mtime === mtime) return hit.value;
+
+  const m = {
+    ctx: 0, window: TIERS[0], pctFull: 0, model: "", turns: 0,
+    totals: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 },
+    cacheHitPct: null, permissionMode: null, modeTransitions: [],
+    gitBranch: null, aiTitle: null, version: null, cwd: "", lastTs: "",
+    speed: null, serviceTier: null, webSearches: 0, webFetches: 0,
+    tools: {}, compacts: [], byModel: {}
+  };
+  let txt; try { txt = fs.readFileSync(file, "utf8"); } catch { return null; }
+  let peak = 0, prevMode = null;
+
+  for (const line of txt.split("\n")) {
+    if (!line) continue;
+    let o; try { o = JSON.parse(line); } catch { continue; }
+
+    if (o.gitBranch) m.gitBranch = o.gitBranch;
+    if (o.aiTitle) m.aiTitle = o.aiTitle;
+    if (o.version) m.version = o.version;
+    if (o.cwd) m.cwd = o.cwd;
+    if (o.timestamp) m.lastTs = o.timestamp;
+
+    if (o.permissionMode) {
+      if (prevMode && prevMode !== o.permissionMode) {
+        m.modeTransitions.push({ at: o.timestamp || "", from: prevMode, to: o.permissionMode });
+      }
+      prevMode = o.permissionMode;
+      m.permissionMode = o.permissionMode;
+    }
+
+    if (o.compactMetadata && o.compactMetadata.preTokens) {
+      m.compacts.push({ at: o.timestamp || "", preTokens: o.compactMetadata.preTokens });
+      if (o.compactMetadata.preTokens > peak) peak = o.compactMetadata.preTokens;
+    }
+
+    if (o.type === "assistant") m.turns++;
+
+    const msg = o.message;
+    if (msg && Array.isArray(msg.content)) {
+      for (const c of msg.content) if (c && c.type === "tool_use") m.tools[c.name] = (m.tools[c.name] || 0) + 1;
+    }
+
+    const u = msg && msg.usage;
+    if (u && u.input_tokens != null) {
+      const inp = u.input_tokens || 0, cr = u.cache_read_input_tokens || 0, cc = u.cache_creation_input_tokens || 0;
+      const total = inp + cr + cc;
+      if (total > peak) peak = total;
+      m.ctx = total;                       // último turno vence
+      m.model = (msg.model || "").replace("claude-", "");
+      m.totals.input += inp; m.totals.output += u.output_tokens || 0;
+      m.totals.cacheRead += cr; m.totals.cacheCreation += cc;
+      if (u.speed) m.speed = u.speed;
+      if (u.service_tier) m.serviceTier = u.service_tier;
+      if (u.server_tool_use) {
+        m.webSearches += u.server_tool_use.web_search_requests || 0;
+        m.webFetches += u.server_tool_use.web_fetch_requests || 0;
+      }
+      const key = msg.model || "unknown";
+      const bucketName = total <= 200000 ? "short" : "long";
+      const perModel = m.byModel[key] || (m.byModel[key] = {});
+      const b = perModel[bucketName] || (perModel[bucketName] =
+        { input: 0, output: 0, cacheRead: 0, cacheCreation5m: 0, cacheCreation1h: 0 });
+      const cw = u.cache_creation || {};
+      b.input += inp; b.output += u.output_tokens || 0; b.cacheRead += cr;
+      b.cacheCreation5m += cw.ephemeral_5m_input_tokens || 0;
+      b.cacheCreation1h += cw.ephemeral_1h_input_tokens || 0;
+    }
+  }
+
+  m.window = peak > TIERS[0] ? TIERS[TIERS.length - 1] : tierFor(peak);
+  if (tierFor(m.ctx) > m.window) m.window = tierFor(m.ctx);
+  m.pctFull = m.window ? m.ctx / m.window * 100 : 0;
+  const inTot = m.totals.input + m.totals.cacheRead + m.totals.cacheCreation;
+  m.cacheHitPct = inTot > 0 ? m.totals.cacheRead / inTot * 100 : null;
+
+  metricsCache.set(file, { mtime, value: m });
+  return m;
+}
+
 module.exports = {
   TIERS, roots, indexAll, liveProcs, readInfo, whereName, tierFor, scanWindow, windowFor, tailRead,
-  fullArgs, procCwd, liveSessions, procStartOf
+  fullArgs, procCwd, liveSessions, procStartOf, sessionMetrics
 };
