@@ -81,6 +81,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.55rem;
+    cursor: pointer;
   }
   .card.inactive { opacity: 0.55; }
 
@@ -151,6 +152,75 @@
   @media (prefers-color-scheme: dark) {
     .bar-track { background: var(--track); }
   }
+
+  dialog#detail {
+    width: min(720px, 92vw);
+    max-height: 88vh;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0;
+    color: var(--fg);
+    background: var(--card-bg);
+  }
+  dialog#detail::backdrop { background: rgba(0, 0, 0, 0.45); }
+  #detail .detail-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.9rem 1.1rem;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--card-bg);
+  }
+  #detail .detail-head h2 {
+    font-size: 1rem;
+    margin: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #detail .detail-head button {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--fg);
+    border-radius: 6px;
+    padding: 0.25rem 0.6rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  #detail .detail-body { padding: 1rem 1.1rem 1.4rem; display: flex; flex-direction: column; gap: 1.4rem; }
+  #detail section h3 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    margin: 0 0 0.5rem;
+  }
+  #detail .note { font-size: 0.78rem; color: var(--muted); margin-top: 0.35rem; }
+  #detail .chart-wrap { width: 100%; }
+  #detail svg.chart { width: 100%; height: auto; display: block; }
+  #detail .axis-label { font-size: 9px; fill: var(--muted); }
+  #detail .compact-line { stroke: #e03131; stroke-width: 1; stroke-dasharray: 3 3; }
+  #detail .compact-label { font-size: 9px; fill: #e03131; }
+  #detail .ctx-line { stroke: var(--accent); stroke-width: 1.75; fill: none; }
+  #detail table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  #detail th, #detail td {
+    text-align: left;
+    padding: 0.3rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  #detail th { color: var(--muted); font-weight: 600; }
+  #detail .toolbar { display: flex; flex-direction: column; gap: 0.4rem; }
+  #detail .tool-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; }
+  #detail .tool-name { width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #detail .tool-bar-track { flex: 1; height: 10px; border-radius: 4px; background: var(--track); overflow: hidden; }
+  #detail .tool-bar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+  #detail .tool-count { width: 2.5rem; text-align: right; color: var(--muted); }
+  #detail ul.plain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.8rem; }
+  #detail .empty-note { color: var(--muted); font-size: 0.82rem; }
 </style>
 </head>
 <body>
@@ -165,6 +235,14 @@
 
 <div id="grid"></div>
 <div id="empty">nenhuma sessão inativa oculta — nada para mostrar</div>
+
+<dialog id="detail">
+  <div class="detail-head">
+    <h2 id="detailTitle"></h2>
+    <button type="button" id="detailClose">fechar ✕</button>
+  </div>
+  <div class="detail-body" id="detailBody"></div>
+</dialog>
 
 <script>
 "use strict";
@@ -262,6 +340,169 @@ function renderCard(s, jobsBySession) {
     <div class="footer-grid">${footer}</div>
   </article>`;
 }
+
+// linePath(points, w, h, maxY, t0, t1) — copiado verbatim do brief da task 8.
+function linePath(points, w, h, maxY, t0, t1) {
+  if (points.length < 2 || !maxY) return "";
+  const x = t => (t1 === t0 ? 0 : (t - t0) / (t1 - t0) * w);
+  const y = v => h - (v / maxY) * h;
+  return points
+    .map((p, i) => `${i ? "L" : "M"}${x(p.ts).toFixed(1)},${y(p.ctx).toFixed(1)}`)
+    .join(" ");
+}
+
+function fmtTime(ts) {
+  if (!ts) return "—";
+  try { return new Date(ts).toLocaleTimeString(); } catch { return "—"; }
+}
+
+function renderCtxChart(points, maxY) {
+  const w = 640, h = 160;
+  if (!points || points.length < 2 || !maxY) {
+    return `<p class="empty-note">pontos insuficientes para desenhar o gráfico</p>`;
+  }
+  const t0 = points[0].ts, t1 = points[points.length - 1].ts;
+  const path = linePath(points, w, h, maxY, t0, t1);
+  const x = t => (t1 === t0 ? 0 : (t - t0) / (t1 - t0) * w);
+
+  const compactMarks = points.filter(p => p.compact === true).map(p => {
+    const cx = x(p.ts).toFixed(1);
+    return `<line class="compact-line" x1="${cx}" y1="0" x2="${cx}" y2="${h}"/>
+      <text class="compact-label" x="${cx}" y="10" text-anchor="middle">compact</text>`;
+  }).join("");
+
+  return `<div class="chart-wrap">
+    <svg class="chart" viewBox="0 0 ${w} ${h + 16}" preserveAspectRatio="none">
+      <path class="ctx-line" d="${esc(path)}"/>
+      ${compactMarks}
+      <text class="axis-label" x="0" y="${h + 12}">${esc(fmtTime(t0))}</text>
+      <text class="axis-label" x="${w}" y="${h + 12}" text-anchor="end">${esc(fmtTime(t1))}</text>
+      <text class="axis-label" x="2" y="10">${esc(fmtTok(maxY))}</text>
+      <text class="axis-label" x="2" y="${h - 2}">0</text>
+    </svg>
+  </div>`;
+}
+
+function renderToolsSection(tools) {
+  const entries = Object.entries(tools || {}).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) return `<p class="empty-note">nenhuma ferramenta usada</p>`;
+  const max = Math.max(...entries.map(([, c]) => c)) || 1;
+  const rows = entries.map(([name, count]) => `
+    <div class="tool-row">
+      <div class="tool-name" title="${esc(name)}">${esc(name)}</div>
+      <div class="tool-bar-track"><div class="tool-bar-fill" style="width:${(count / max * 100).toFixed(1)}%"></div></div>
+      <div class="tool-count">${esc(String(count))}</div>
+    </div>`).join("");
+  return `<div class="toolbar">${rows}</div>`;
+}
+
+function renderSubagentsSection(subagents) {
+  if (!subagents || !subagents.length) return `<p class="empty-note">nenhum subagent registrado</p>`;
+  const rows = subagents.map(s => `
+    <tr>
+      <td>${esc(s.agentType || "—")}</td>
+      <td>${esc(s.description || "—")}</td>
+      <td>${esc(s.model || "—")}</td>
+      <td>${esc(fmtTok(s.tokens && s.tokens.input))}</td>
+      <td>${esc(fmtTok(s.tokens && s.tokens.output))}</td>
+    </tr>`).join("");
+  return `<table>
+    <thead><tr><th>tipo</th><th>descrição</th><th>modelo</th><th>tok in</th><th>tok out</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderModeTransitionsSection(transitions) {
+  if (!transitions || !transitions.length) return `<p class="empty-note">nenhuma transição de modo</p>`;
+  const items = transitions.map(t => `<li>${esc(fmtTime(Date.parse(t.at) || 0))} — ${esc(t.from)} → ${esc(t.to)}</li>`).join("");
+  return `<ul class="plain">${items}</ul>`;
+}
+
+function renderCostSection(cost, totals) {
+  if (cost == null) {
+    const acc = totals ? (totals.input || 0) + (totals.output || 0) + (totals.cacheRead || 0) + (totals.cacheCreation || 0) : 0;
+    return `<p><b>${esc(fmtTok(acc))}</b> tokens acumulados</p>
+      <p class="note">preço não verificado para este modelo</p>`;
+  }
+  const label = costLabel(cost);
+  const extra = cost.partial
+    ? `<p class="note">+ parcial — inclui tokens sem preço confirmado (ver bucket long)</p>`
+    : "";
+  return `<p><b>${esc(label)}</b> total acumulado</p>${extra}`;
+}
+
+function renderWorkflowsSection(workflows) {
+  if (!workflows || !workflows.length) return `<p class="empty-note">nenhum workflow registrado</p>`;
+  // Formato de journal.jsonl nunca observado em disco nesta máquina — não desenhar
+  // UI de detalhe estruturada, apenas confirmar quantidade de eventos registrados.
+  return `<p>${esc(String(workflows.length))} evento(s) de workflow registrado(s) (formato ainda não validado — sem detalhe estruturado)</p>`;
+}
+
+async function openDetail(id) {
+  const s = (lastData.sessions || []).find(x => x.id === id);
+  const dlg = document.getElementById("detail");
+  const title = document.getElementById("detailTitle");
+  const body = document.getElementById("detailBody");
+  title.textContent = (s && (s.title || s.id.slice(0, 8))) || id;
+  body.innerHTML = `<p class="empty-note">carregando…</p>`;
+  dlg.showModal();
+
+  let data;
+  try {
+    const r = await fetch("/api/session/" + encodeURIComponent(id) + "/timeline");
+    data = await r.json();
+  } catch {
+    body.innerHTML = `<p class="empty-note">falha ao carregar detalhe da sessão</p>`;
+    return;
+  }
+  if (!data || data.error) {
+    body.innerHTML = `<p class="empty-note">${esc((data && data.error) || "sessão não encontrada")}</p>`;
+    return;
+  }
+
+  const points = data.points || [];
+  const metrics = data.metrics || {};
+  const cost = s ? s.cost : null;
+
+  body.innerHTML = `
+    <section>
+      <h3>Contexto × tempo</h3>
+      ${renderCtxChart(points, metrics.window)}
+    </section>
+    <section>
+      <h3>Custo acumulado</h3>
+      ${renderCostSection(cost, metrics.totals)}
+    </section>
+    <section>
+      <h3>Ferramentas</h3>
+      ${renderToolsSection(metrics.tools)}
+    </section>
+    <section>
+      <h3>Subagents</h3>
+      ${renderSubagentsSection(data.subagents)}
+    </section>
+    <section>
+      <h3>Transições de modo</h3>
+      ${renderModeTransitionsSection(metrics.modeTransitions)}
+    </section>
+    <section>
+      <h3>Workflows</h3>
+      ${renderWorkflowsSection(data.workflows)}
+    </section>
+  `;
+}
+
+document.getElementById("grid").addEventListener("click", e => {
+  const card = e.target.closest(".card");
+  if (!card) return;
+  openDetail(card.dataset.id);
+});
+document.getElementById("detailClose").addEventListener("click", () => {
+  document.getElementById("detail").close();
+});
+document.getElementById("detail").addEventListener("click", e => {
+  if (e.target.id === "detail") document.getElementById("detail").close();
+});
 
 let showAll = false;
 let lastData = { sessions: [], jobs: [] };
