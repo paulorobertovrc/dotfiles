@@ -208,7 +208,9 @@
     font-size: var(--t-body);
     color: var(--fg-2);
   }
-  .ctx-hero .spark { margin-left: auto; }
+  /* SVG em baseline flutua; centraliza no eixo do numeral. */
+  .ctx-hero .spark { margin-left: auto; align-self: center; }
+  .spark svg { display: block; }
 
   .bar-track {
     height: 6px;
@@ -376,8 +378,17 @@ function costLabel(cost) {
 
 function fmtTok(n) {
   if (n == null) return "0";
+  // Janela de 1M lia "1000k". Acima de 1e6 usa M, sem casa decimal supérflua.
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
   if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k";
   return String(n);
+}
+
+// No card, a célula de custo é estreita: o "+" já marca a estimativa parcial,
+// e o texto completo vai no title. costLabel() (longo) segue no drill-down.
+function costLabelShort(cost) {
+  if (cost == null) return "—";
+  return "$" + cost.usd.toFixed(2) + (cost.partial ? "+" : "");
 }
 
 function sparkline(values, w = 88, h = 22) {
@@ -407,9 +418,12 @@ function renderCard(s, jobsBySession) {
   const dot = s.live ? '<span class="dot">●</span>' : "";
   const job = jobsBySession.get(s.id);
 
+  // "standard" é a linha de base do speed — aparecia em todo card, virava ruído
+  // e roubava a largura do título. Mesmo princípio já aplicado ao permissionMode
+  // "auto": só se destaca o que desvia da norma.
   const badges = [
     badge(s.permissionMode || "default", modeStyle),
-    s.speed ? badge(s.speed, MODE_STYLE.default) : "",
+    s.speed && s.speed !== "standard" ? badge(s.speed, MODE_STYLE.default) : "",
     job ? badge("bg: " + (job.state || job.id), MODE_STYLE.default) : ""
   ].filter(Boolean).join("");
 
@@ -421,14 +435,15 @@ function renderCard(s, jobsBySession) {
   const reading = `${fmtTok(s.ctx)} / ${fmtTok(s.window)}`;
 
   const footer = [
-    ["turnos", s.turns ?? "—"],
-    ["cache", s.cacheHitPct != null ? Math.round(s.cacheHitPct) + "%" : "—"],
-    ["custo", costLabel(s.cost)],
-    ["subagents", s.subagents ?? 0],
-    ["compacts", s.compacts ?? 0],
-    ["web reqs", (s.webSearches || 0) + (s.webFetches || 0)]
-  ].map(([label, v]) =>
-    `<div class="cell"><span class="k">${esc(label)}</span><span class="v">${esc(String(v))}</span></div>`
+    ["turnos", s.turns ?? "—", ""],
+    ["cache", s.cacheHitPct != null ? Math.round(s.cacheHitPct) + "%" : "—", ""],
+    ["custo", costLabelShort(s.cost), costLabel(s.cost)],
+    ["subagents", s.subagents ?? 0, ""],
+    ["compacts", s.compacts ?? 0, ""],
+    ["web reqs", (s.webSearches || 0) + (s.webFetches || 0), ""]
+  ].map(([label, v, tip]) =>
+    `<div class="cell"${tip ? ` title="${esc(tip)}"` : ""}>` +
+    `<span class="k">${esc(label)}</span><span class="v">${esc(String(v))}</span></div>`
   ).join("");
 
   // --pressure/-t alimentam a borda esquerda, o numeral e a sparkline.
@@ -440,7 +455,7 @@ function renderCard(s, jobsBySession) {
       <div class="title" title="${title}">${title}</div>
       <div class="badges">${badges}</div>
     </div>
-    <div class="subline">${sub}</div>
+    <div class="subline" title="${sub}">${sub}</div>
     <div class="ctx-block">
       <div class="ctx-hero">
         <span class="pct">${esc(String(pct))}<span style="font-size:0.5em;font-weight:500">%</span></span>
