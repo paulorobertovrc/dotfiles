@@ -1,7 +1,7 @@
 # ctx-dash — Dashboard visual de sessões Claude
 
 **Data:** 2026-07-10
-**Status:** Aprovado (brainstorming) — pronto para plano de implementação
+**Status:** Aprovado (final, 2026-07-10) — pronto para plano de implementação
 **Repo:** `dotfiles/claude/` (decisão registrada abaixo; **não** migrar para Homelab)
 
 ## Problema
@@ -192,6 +192,15 @@ Campos confirmados em transcript real (`2a9ac356…jsonl`):
 - Exposição na LAN.
 - Repo dedicado (`claude-ctx-dash`) — reconsiderar só depois que a ferramenta amadurecer e
   provar valor.
+- **Alertas físicos via Stream Deck MCP (fase 2, aprovada em conceito 2026-07-10):**
+  `@elgato/mcp-server` expõe como tools MCP as ações do perfil "MCP Actions" (disparo,
+  não display — pintar teclas exigiria plugin via SDK, outro projeto). Fase 2: ctx-dash
+  dispara ações pré-configuradas em eventos (contexto ≥80%, job concluído) via cliente
+  MCP mínimo (JSON-RPC, stdio/HTTP; zero deps). Ambiente verificado: Stream Deck 7.5.0
+  no host, Node v24 no host, WSL mirrored (localhost bidirecional). Pré-requisito do
+  usuário: habilitar MCP nas Preferences do app. **Implicação para v1:** ctx-lib emite
+  eventos de threshold internamente (o SSE já os carrega); o sink Stream Deck pluga
+  depois sem retrabalho.
 - Escrita/controle de sessões via dashboard (somente leitura). **Reavaliado em
   2026-07-10** para controle por-sessão de modelo/esforço: não existe superfície
   suportada — `model` no settings.json não tem hot-reload (docs oficiais: "use /model
