@@ -1,0 +1,2 @@
+{"isSidechain":true,"agentId":"abc123","type":"user","message":{"role":"user","content":"faça X"}}
+{"isSidechain":true,"agentId":"abc123","type":"assistant","message":{"model":"claude-haiku-4-5-20251001","role":"assistant","usage":{"input_tokens":5,"output_tokens":50,"cache_read_input_tokens":1000,"cache_creation_input_tokens":0}}}

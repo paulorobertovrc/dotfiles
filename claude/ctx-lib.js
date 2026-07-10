@@ -356,7 +356,72 @@ function costOf(byModel) {
   return { usd, partial };
 }
 
+// O transcript-dir é o diretório irmão com o mesmo nome do .jsonl, sem extensão.
+function transcriptDir(file) { return file.replace(/\.jsonl$/, ""); }
+
+function subagentsFor(file) {
+  const dir = path.join(transcriptDir(file), "subagents");
+  let files; try { files = fs.readdirSync(dir); } catch { return []; }
+  const out = [];
+  for (const f of files) {
+    if (!f.endsWith(".jsonl")) continue;
+    const agentId = f.replace(/^agent-/, "").replace(/\.jsonl$/, "");
+    let meta = {};
+    try { meta = JSON.parse(fs.readFileSync(path.join(dir, "agent-" + agentId + ".meta.json"), "utf8")); } catch {}
+    let mtime = 0; try { mtime = fs.statSync(path.join(dir, f)).mtimeMs; } catch {}
+    const tokens = { input: 0, output: 0 };
+    let model = "";
+    let txt; try { txt = fs.readFileSync(path.join(dir, f), "utf8"); } catch { continue; }
+    for (const line of txt.split("\n")) {
+      if (!line) continue;
+      let o; try { o = JSON.parse(line); } catch { continue; }
+      const u = o.message && o.message.usage;
+      if (u && u.input_tokens != null) {
+        tokens.input += (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+        tokens.output += u.output_tokens || 0;
+        if (o.message.model) model = o.message.model.replace("claude-", "");
+      }
+    }
+    out.push({ agentId, agentType: meta.agentType || "", description: meta.description || "",
+               spawnDepth: meta.spawnDepth || 0, model, tokens, mtime });
+  }
+  return out;
+}
+
+function backgroundJobs(home = os.homedir()) {
+  const dir = path.join(home, ".claude", "jobs");
+  let entries; try { entries = fs.readdirSync(dir); } catch { return []; }
+  const out = [];
+  for (const id of entries) {
+    let s; try { s = JSON.parse(fs.readFileSync(path.join(dir, id, "state.json"), "utf8")); } catch { continue; }
+    const flags = s.respawnFlags || [];
+    const mi = flags.indexOf("--model");
+    out.push({
+      id, state: s.state || "", sessionId: s.sessionId || "", name: s.name || "",
+      intent: s.intent || "", tokens: s.tokens || 0,
+      inFlight: s.inFlight || { tasks: 0, queued: 0 },
+      model: mi >= 0 && flags[mi + 1] ? flags[mi + 1] : ""
+    });
+  }
+  return out;
+}
+
+// Workflows: o journal.jsonl NÃO foi observado em disco (nenhum workflow rodou
+// nesta máquina até 2026-07-10). Descoberta tolerante; o formato deve ser
+// validado com um workflow real ANTES de desenhar UI de detalhe.
+function workflowsFor(file) {
+  const j = path.join(transcriptDir(file), "journal.jsonl");
+  let txt; try { txt = fs.readFileSync(j, "utf8"); } catch { return []; }
+  const out = [];
+  for (const line of txt.split("\n")) {
+    if (!line) continue;
+    try { out.push(JSON.parse(line)); } catch {}
+  }
+  return out;
+}
+
 module.exports = {
   TIERS, roots, indexAll, liveProcs, readInfo, whereName, tierFor, scanWindow, windowFor, tailRead,
-  fullArgs, procCwd, liveSessions, procStartOf, sessionMetrics, timeline, trend, PRICES, costOf
+  fullArgs, procCwd, liveSessions, procStartOf, sessionMetrics, timeline, trend, PRICES, costOf,
+  subagentsFor, backgroundJobs, workflowsFor, transcriptDir
 };

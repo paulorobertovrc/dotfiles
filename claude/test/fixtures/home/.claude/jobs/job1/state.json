@@ -1,0 +1,1 @@
+{"state":"done","tokens":4648,"inFlight":{"tasks":0,"queued":0,"kinds":[]},"name":"job de teste","intent":"testar","sessionId":"aaaaaaaa-0000-0000-0000-000000000001","respawnFlags":["--agent","claude","--model","claude-fable-5[1m]"]}
