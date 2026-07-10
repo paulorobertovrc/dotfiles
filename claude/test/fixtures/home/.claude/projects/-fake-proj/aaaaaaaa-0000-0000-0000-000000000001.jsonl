@@ -1,0 +1,2 @@
+{"type":"user","cwd":"/fake/proj","timestamp":"2026-01-01T00:00:00.000Z","gitBranch":"main","permissionMode":"auto","version":"2.1.205","message":{"role":"user","content":"oi"}}
+{"type":"assistant","cwd":"/fake/proj","timestamp":"2026-01-01T00:01:00.000Z","permissionMode":"auto","message":{"role":"assistant","model":"claude-opus-4-8","usage":{"input_tokens":10,"output_tokens":100,"cache_read_input_tokens":49990,"cache_creation_input_tokens":0}}}

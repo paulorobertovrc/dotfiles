@@ -1,0 +1,3 @@
+  sessão    modelo          onde                  últ.ativ.    contexto
+  aaaaaaaa  opus-4-8        proj                  agora        [32m█████···············    50,000 / 200k (25%)[0m
+[2m1 sessões, 0 ativa(s) ● · janela inferida por sessão[0m
