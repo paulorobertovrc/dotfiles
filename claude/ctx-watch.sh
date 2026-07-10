@@ -22,5 +22,11 @@
 # O modo --watch redesenha no instante em que um transcript muda (fs.watch), com um
 # tick de 2s só p/ atualizar idades e detectar processos que entram/saem — não precisa
 # do utilitário `watch`. A ocupação só muda quando a sessão grava um turno no transcript.
+#
+# Dashboard visual (grid + drill-down por sessão), companheiro deste painel de terminal:
+#   node ~/.claude/ctx-dash.js [--port 4791]   # sob demanda (alias: ctxd)
+# Sobe um servidor HTTP em 127.0.0.1 (nunca expõe na LAN), somente leitura (GET + SSE),
+# usando a mesma lib de coleta (ctx-lib.js) que este script. Ver spec em
+# docs/superpowers/specs/2026-07-10-ctx-dash-design.md.
 
 exec node "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ctx-watch.js" "$@"
