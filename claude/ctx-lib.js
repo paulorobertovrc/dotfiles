@@ -3,12 +3,21 @@ const fs = require("fs"), path = require("path"), os = require("os"), cp = requi
 
 const TIERS = [200000, 1000000];
 
+// A varredura de /mnt/{c,d,e}/Users/*/.claude/projects é comportamento de
+// PRODUÇÃO (achar sessões do Windows quando rodando em WSL) — só se aplica
+// quando `home` é o os.homedir() real (ou não foi passado explicitamente).
+// Um `home` de fixture injetado por teste NUNCA deve vazar para /mnt: no dia
+// em que essas pastas existirem povoadas de projetos reais nesta máquina, a
+// suíte (que depende de fixtures isoladas, incluindo o golden snapshot da
+// Task 1) vazaria sessões reais para dentro de resultados esperados de teste.
 function roots(home = os.homedir()) {
   const r = [], add = p => { try { if (fs.statSync(p).isDirectory()) r.push(p); } catch {} };
   add(path.join(home, ".claude", "projects"));
-  for (const d of ["c", "d", "e"]) {
-    let us; try { us = fs.readdirSync("/mnt/" + d + "/Users"); } catch { continue; }
-    for (const u of us) add("/mnt/" + d + "/Users/" + u + "/.claude/projects");
+  if (home === os.homedir()) {
+    for (const d of ["c", "d", "e"]) {
+      let us; try { us = fs.readdirSync("/mnt/" + d + "/Users"); } catch { continue; }
+      for (const u of us) add("/mnt/" + d + "/Users/" + u + "/.claude/projects");
+    }
   }
   return r;
 }
