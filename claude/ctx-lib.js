@@ -123,4 +123,44 @@ function windowFor(file, currentCtx) {
   return w;
 }
 
-module.exports = { TIERS, roots, indexAll, liveProcs, readInfo, whereName, tierFor, scanWindow, windowFor, tailRead };
+// Lê /proc/<pid>/stat campo 22 (starttime). Guard contra reuso de PID:
+// ~/.claude/sessions/ acumula órfãos (7 de 14 na inspeção de 2026-07-10).
+function procStartOf(pid) {
+  try {
+    const st = fs.readFileSync("/proc/" + pid + "/stat", "utf8");
+    return st.slice(st.lastIndexOf(")") + 2).split(" ")[19];
+  } catch { return null; }
+}
+
+function defaultIsAlive(pid, procStart) {
+  const real = procStartOf(pid);
+  if (real == null) return false;
+  return procStart == null || String(real) === String(procStart);
+}
+
+function liveSessions(home = os.homedir(), opts = {}) {
+  const isAlive = opts.isAlive || defaultIsAlive;
+  const dir = path.join(home, ".claude", "sessions");
+  let files; try { files = fs.readdirSync(dir); } catch { return []; }
+  const out = [];
+  for (const f of files) {
+    if (!f.endsWith(".json")) continue;
+    let o; try { o = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")); } catch { continue; }
+    if (!o || !o.pid || !o.sessionId) continue;
+    if (!isAlive(o.pid, o.procStart)) continue;
+    out.push({
+      pid: o.pid, sessionId: o.sessionId, cwd: o.cwd || "", name: o.name || "",
+      version: o.version || "", entrypoint: o.entrypoint || "", kind: o.kind || "",
+      startedAt: o.startedAt || 0,
+      // status/waitingFor são gravados de forma esporádica (1 de 14 arquivos em
+      // 2026-07-10) — tratar como enriquecimento best-effort, nunca como base.
+      status: o.status || null, waitingFor: o.waitingFor || null
+    });
+  }
+  return out;
+}
+
+module.exports = {
+  TIERS, roots, indexAll, liveProcs, readInfo, whereName, tierFor, scanWindow, windowFor, tailRead,
+  fullArgs, procCwd, liveSessions, procStartOf
+};
