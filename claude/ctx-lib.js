@@ -247,7 +247,116 @@ function sessionMetrics(file) {
   return m;
 }
 
+const timelineCache = new Map();
+
+// timeline(file) — extrai um ponto por turno de assistant (mais compactMetadata),
+// em ordem cronológica, cacheado por mtime do arquivo (mesmo padrão de sessionMetrics).
+function timeline(file) {
+  let mtime = 0; try { mtime = fs.statSync(file).mtimeMs; } catch { return []; }
+  const hit = timelineCache.get(file);
+  if (hit && hit.mtime === mtime) return hit.value;
+
+  const pts = [];
+  let txt; try { txt = fs.readFileSync(file, "utf8"); } catch { return []; }
+  for (const line of txt.split("\n")) {
+    if (!line) continue;
+    let o; try { o = JSON.parse(line); } catch { continue; }
+    if (o.compactMetadata && o.compactMetadata.preTokens) {
+      pts.push({ ts: Date.parse(o.timestamp || 0) || 0, ctx: o.compactMetadata.preTokens,
+                 output: 0, model: "", compact: true });
+      continue;
+    }
+    const u = o.message && o.message.usage;
+    if (!u || u.input_tokens == null) continue;
+    pts.push({
+      ts: Date.parse(o.timestamp || 0) || 0,
+      ctx: (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0),
+      output: u.output_tokens || 0,
+      model: (o.message.model || "").replace("claude-", ""),
+      compact: false
+    });
+  }
+  pts.sort((a, b) => a.ts - b.ts);
+  timelineCache.set(file, { mtime, value: pts });
+  return pts;
+}
+
+// trend(points, windowTokens) — tendência pela regressão simples entre o primeiro e o
+// último ponto da janela recente (últimos 5 pontos não-compact). Compacts quebram
+// monotonicidade do contexto, por isso são excluídos da amostra.
+function trend(points, windowTokens) {
+  const p = points.filter(x => !x.compact).slice(-5);
+  if (p.length < 2) return { tokensPerMin: 0, etaMinutes: null };
+  const a = p[0], b = p[p.length - 1];
+  const dtMin = (b.ts - a.ts) / 60000;
+  if (dtMin <= 0) return { tokensPerMin: 0, etaMinutes: null };
+  const tokensPerMin = (b.ctx - a.ctx) / dtMin;
+  if (tokensPerMin <= 0) return { tokensPerMin, etaMinutes: null };
+  const remaining = windowTokens - b.ctx;
+  return { tokensPerMin, etaMinutes: remaining > 0 ? remaining / tokensPerMin : 0 };
+}
+
+// USD por 1.000.000 de tokens. Preencher SOMENTE com valores verificados na fonte
+// oficial. Modelo sem bucket "short" => costOf marca partial e não inventa número.
+// Bucket "long" ausente => costOf usa o preço "short" para tokens >200k E marca
+// partial (nunca precifica contexto longo em silêncio como se fosse curto).
+//
+// Fonte: https://platform.claude.com/docs/en/about-claude/pricing
+// (redirecionado de https://docs.claude.com/en/docs/about-claude/pricing)
+// Verificado em: 2026-07-10
+//
+// Sobretaxa de contexto longo (>200k tokens de input): a própria fonte, seção
+// "Long context pricing", confirma EXPLICITAMENTE que não existe sobretaxa para
+// nenhum modelo em uso nesta lib — citação verbatim:
+//   "Claude Fable 5, Claude Mythos 5, Claude Mythos Preview, Claude Opus 4.8,
+//   Opus 4.7, Opus 4.6, Sonnet 5, and Sonnet 4.6 include the full 1M token
+//   context window at standard pricing. (A 900k-token request is billed at
+//   the same per-token rate as a 9k-token request.)"
+// Por isso os buckets "long" de claude-opus-4-8 e claude-fable-5 abaixo são
+// idênticos aos buckets "short" — não é uma estimativa, é o preço confirmado
+// (não seria correto marcar partial aqui, já que não há lacuna de informação).
+// claude-haiku-4-5-20251001 NÃO tem bucket "long": Haiku 4.5 tem janela de
+// contexto de 200K (sem variante 1M), então não há preço de contexto longo
+// a verificar para esse modelo — costOf cai no fallback documentado acima
+// (usa "short" e marca partial) se um bucket "long" aparecer para ele de
+// qualquer forma.
+const PRICES = {
+  "claude-opus-4-8": {
+    short: { input: 5, output: 25, cacheRead: 0.5, cacheWrite5m: 6.25, cacheWrite1h: 10 },
+    long:  { input: 5, output: 25, cacheRead: 0.5, cacheWrite5m: 6.25, cacheWrite1h: 10 },
+  },
+  "claude-fable-5": {
+    short: { input: 10, output: 50, cacheRead: 1, cacheWrite5m: 12.5, cacheWrite1h: 20 },
+    long:  { input: 10, output: 50, cacheRead: 1, cacheWrite5m: 12.5, cacheWrite1h: 20 },
+  },
+  "claude-haiku-4-5-20251001": {
+    short: { input: 1, output: 5, cacheRead: 0.1, cacheWrite5m: 1.25, cacheWrite1h: 2 },
+  },
+};
+
+function costOf(byModel) {
+  let usd = 0, partial = false, any = false;
+  for (const [model, buckets] of Object.entries(byModel || {})) {
+    const price = PRICES[model];
+    if (!price) { partial = true; continue; }
+    for (const bucketName of ["short", "long"]) {
+      const t = buckets[bucketName];
+      if (!t) continue;
+      const p = price[bucketName] || price.short;
+      if (bucketName === "long" && !price.long) partial = true;
+      any = true;
+      usd += (t.input / 1e6) * p.input
+           + (t.output / 1e6) * p.output
+           + (t.cacheRead / 1e6) * p.cacheRead
+           + (t.cacheCreation5m / 1e6) * p.cacheWrite5m
+           + (t.cacheCreation1h / 1e6) * p.cacheWrite1h;
+    }
+  }
+  if (!any) return null;
+  return { usd, partial };
+}
+
 module.exports = {
   TIERS, roots, indexAll, liveProcs, readInfo, whereName, tierFor, scanWindow, windowFor, tailRead,
-  fullArgs, procCwd, liveSessions, procStartOf, sessionMetrics
+  fullArgs, procCwd, liveSessions, procStartOf, sessionMetrics, timeline, trend, PRICES, costOf
 };
