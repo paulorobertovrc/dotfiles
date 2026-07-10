@@ -109,14 +109,22 @@ function createServer(opts = {}) {
   };
   attach();
   const iv = setInterval(attach, 5000);
-  srv.on("close", () => {
+
+  // http.Server só emite 'close' depois que todas as conexões existentes
+  // terminam. Conexões SSE em /api/events ficam abertas indefinidamente, então
+  // precisamos encerrá-las (e limpar watchers/timers) ANTES de delegar para o
+  // close() original — senão o 'close' nunca dispara enquanto houver um
+  // cliente SSE conectado.
+  const originalClose = srv.close.bind(srv);
+  srv.close = (cb) => {
     clearInterval(iv);
     if (timer) clearTimeout(timer);
     for (const w of watched.values()) { try { w.close(); } catch {} }
     watched.clear();
     for (const c of clients) { try { c.end(); } catch {} }
     clients.clear();
-  });
+    return originalClose(cb);
+  };
   return srv;
 }
 

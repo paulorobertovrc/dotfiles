@@ -30,3 +30,23 @@ test("servidor responde /api/sessions com JSON e recusa métodos de escrita", as
 
   await new Promise(r => srv.close(r));
 });
+
+test("srv.close() encerra mesmo com cliente SSE conectado (não trava)", async () => {
+  const srv = createServer({ home: HOME, isAlive: () => true });
+  await new Promise(r => srv.listen(0, "127.0.0.1", r));
+  const port = srv.address().port;
+
+  // Abre uma conexão SSE e a mantém aberta — não consome/espera o body terminar.
+  const res = await fetch(`http://127.0.0.1:${port}/api/events`);
+  assert.strictEqual(res.status, 200);
+  assert.match(res.headers.get("content-type") || "", /text\/event-stream/);
+
+  const closed = await Promise.race([
+    new Promise(r => srv.close(() => r(true))),
+    new Promise(r => setTimeout(() => r(false), 2000))
+  ]);
+
+  assert.strictEqual(closed, true, "srv.close() deve chamar o callback mesmo com SSE aberto, sem travar");
+
+  try { res.body && res.body.cancel && res.body.cancel(); } catch {}
+});
