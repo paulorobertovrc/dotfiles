@@ -9,30 +9,60 @@
     color-scheme: light dark;
     --bg: #f4f5f7;
     --card-bg: #ffffff;
-    --fg: #1a1b1e;
-    --muted: #6b7280;
+
+    /* Três níveis de texto. Antes havia só --muted, que achatava título,
+       leitura, tendência e rótulo no mesmo peso visual. */
+    --fg: #16171a;        /* primário: título e valores */
+    --fg-2: #565d67;      /* secundário: leituras, tendência */
+    --fg-3: #8b929c;      /* terciário: rótulos, metadados */
+    --muted: #565d67;
+
     --border: #e1e3e8;
     --track: #e9ecef;
     --accent: #364fc7;
+
+    /* Pressão de contexto. Os hex das BARRAS são os aprovados no spec (mesma
+       semântica do terminal). Os de TEXTO são variantes com contraste
+       suficiente para numeral: área preenchida e glifo têm exigências
+       diferentes — âmbar #e8a33d em fundo branco não serve para texto. */
+    --ok: #2f9e44;   --ok-t: #2b8a3e;
+    --warn: #e8a33d; --warn-t: #b26b00;
+    --crit: #e03131; --crit-t: #c92a2a;
+
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-data: ui-monospace, "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+
+    /* Escala de 4 degraus. Antes: oito tamanhos entre 0.68 e 1rem. */
+    --t-micro: 0.6875rem;
+    --t-body: 0.8125rem;
+    --t-title: 0.9375rem;
+    --t-hero: 1.875rem;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #17181c;
       --card-bg: #232429;
-      --fg: #e9ecef;
-      --muted: #9aa1ab;
+      --fg: #eceef1;
+      --fg-2: #a5acb6;
+      --fg-3: #767d87;
+      --muted: #a5acb6;
       --border: #33353c;
       --track: #35373d;
       --accent: #7f9dff;
+      --ok-t: #51cf66;
+      --warn-t: #ffb84d;
+      --crit-t: #ff6b6b;
     }
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: var(--font-ui);
     background: var(--bg);
     color: var(--fg);
   }
+  /* Dígitos alinham em coluna quando se varre a grade. */
+  .num { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
   header {
     display: flex;
     flex-wrap: wrap;
@@ -46,24 +76,54 @@
     z-index: 10;
   }
   header h1 {
-    font-size: 1rem;
+    font-size: var(--t-title);
     margin: 0;
     font-weight: 700;
     letter-spacing: 0.02em;
   }
-  header .stat { font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
-  header .stat b { color: var(--fg); }
+  header .stat { font-size: var(--t-body); color: var(--fg-3); white-space: nowrap; }
+  header .stat b { color: var(--fg); font-weight: 600; }
   header .spacer { flex: 1; }
   header label {
-    font-size: 0.85rem;
-    color: var(--muted);
+    font-size: var(--t-body);
+    color: var(--fg-2);
     display: flex;
     align-items: center;
     gap: 0.35rem;
     cursor: pointer;
     user-select: none;
   }
-  #clock { font-variant-numeric: tabular-nums; font-size: 0.85rem; color: var(--muted); }
+  #clock {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--t-body);
+    color: var(--fg-3);
+  }
+
+  /* Config ATIVA do CLI — global, não por sessão. Rotulada como tal. */
+  #config {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: var(--t-body);
+    color: var(--fg-3);
+    white-space: nowrap;
+  }
+  #config .k {
+    font-size: var(--t-micro);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-3);
+  }
+  #config .chip {
+    font-family: var(--font-data);
+    font-size: var(--t-body);
+    color: var(--fg);
+    background: var(--track);
+    border-radius: 5px;
+    padding: 0.1rem 0.4rem;
+  }
+  #config .chip.ef { color: #fff; }
 
   #grid {
     display: grid;
@@ -73,9 +133,12 @@
   }
   #empty { padding: 2rem; color: var(--muted); text-align: center; display: none; }
 
+  /* A pressão colore o card: a borda esquerda é o sinal que atravessa
+     uma grade de vinte cards sem exigir leitura. */
   .card {
     background: var(--card-bg);
     border: 1px solid var(--border);
+    border-left: 3px solid var(--pressure, var(--border));
     border-radius: 10px;
     padding: 0.9rem 1rem 1rem;
     display: flex;
@@ -84,16 +147,18 @@
     cursor: pointer;
   }
   .card.inactive { opacity: 0.55; }
+  .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   .card-top {
     display: flex;
     align-items: center;
     gap: 0.4rem;
   }
-  .dot { color: #2f9e44; font-size: 0.8rem; line-height: 1; }
+  .dot { color: var(--ok); font-size: 0.8rem; line-height: 1; }
   .title {
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: var(--t-title);
+    letter-spacing: -0.005em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -101,56 +166,91 @@
   }
   .badges { display: flex; gap: 0.3rem; flex-wrap: wrap; }
   .badge {
-    font-size: 0.68rem;
+    font-size: var(--t-micro);
     font-weight: 700;
     padding: 0.12rem 0.45rem;
     border-radius: 999px;
     text-transform: uppercase;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.04em;
     white-space: nowrap;
   }
 
   .subline {
-    font-size: 0.78rem;
-    color: var(--muted);
+    font-size: var(--t-body);
+    color: var(--fg-3);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .ctx-block { display: flex; flex-direction: column; gap: 0.3rem; }
+  .ctx-block { display: flex; flex-direction: column; gap: 0.4rem; }
+
+  /* O percentual é a resposta que a ferramenta existe para dar. Ele é o
+     instrumento: grande, tabular, colorido pela pressão. A leitura crua e a
+     sparkline o acompanham, subordinadas. */
+  .ctx-hero {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+  .pct {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--t-hero);
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--pressure-t, var(--fg));
+  }
+  .reading {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--t-body);
+    color: var(--fg-2);
+  }
+  .ctx-hero .spark { margin-left: auto; }
+
   .bar-track {
-    height: 8px;
-    border-radius: 4px;
+    height: 6px;
+    border-radius: 3px;
     background: var(--track);
     overflow: hidden;
   }
-  .bar-fill { height: 100%; border-radius: 4px; }
-  .ctx-text {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    font-size: 0.78rem;
-    color: var(--muted);
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .spark { color: var(--pressure-t, var(--accent)); line-height: 0; opacity: 0.7; }
+  .trend {
+    font-size: var(--t-body);
+    color: var(--fg-2);
+    font-variant-numeric: tabular-nums;
   }
-  .ctx-text b { color: var(--fg); font-size: 0.85rem; }
-  .spark { color: var(--accent); line-height: 0; }
-  .trend { font-size: 0.75rem; color: var(--muted); }
 
+  /* Seis células mantidas (decisão do spec). A hierarquia vem do par
+     rótulo-em-micro-caixa-alta / valor-em-monospace, não da contagem. */
   .footer-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(2, auto);
-    gap: 0.35rem 0.5rem;
-    padding-top: 0.4rem;
+    gap: 0.5rem;
+    padding-top: 0.55rem;
     border-top: 1px solid var(--border);
-    font-size: 0.72rem;
-    color: var(--muted);
   }
-  .footer-grid .v { color: var(--fg); font-weight: 600; }
-
-  @media (prefers-color-scheme: dark) {
-    .bar-track { background: var(--track); }
+  .footer-grid .cell { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+  .footer-grid .k {
+    font-size: var(--t-micro);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-3);
+    white-space: nowrap;
+  }
+  .footer-grid .v {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--t-body);
+    color: var(--fg);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   dialog#detail {
@@ -229,6 +329,7 @@
   <div class="stat"><b id="liveCount">0</b> vivas</div>
   <div class="stat"><b id="jobCount">0</b> jobs ativos</div>
   <div class="spacer"></div>
+  <div id="config" title="Configuração ativa do CLI. Sessões podem trocar de modelo em runtime via /model."></div>
   <label><input type="checkbox" id="showAllToggle"> mostrar inativas</label>
   <div id="clock">--:--:--</div>
 </header>
@@ -258,10 +359,13 @@ const MODE_STYLE = {
   auto:              null                              // linha de base: sem badge
 };
 
-function pctColor(pct) {
-  if (pct >= 80) return "#e03131";
-  if (pct >= 50) return "#e8a33d";
-  return "#2f9e44";
+// Faixas de pressão do spec (mesma semântica do terminal). Devolve o nome do
+// par de tokens CSS; a barra usa --ok/--warn/--crit e o numeral usa a variante
+// -t, com contraste adequado para texto em ambos os temas.
+function pressureName(pct) {
+  if (pct >= 80) return "crit";
+  if (pct >= 50) return "warn";
+  return "ok";
 }
 
 function costLabel(cost) {
@@ -276,7 +380,7 @@ function fmtTok(n) {
   return String(n);
 }
 
-function sparkline(values, w = 160, h = 28) {
+function sparkline(values, w = 88, h = 22) {
   if (!values || values.length < 2) return "";
   const max = Math.max(...values) || 1;
   const pts = values.map((v, i) =>
@@ -313,8 +417,8 @@ function renderCard(s, jobsBySession) {
     .filter(Boolean).join(" · ");
 
   const pct = Math.round(s.pctFull || 0);
-  const color = pctColor(pct);
-  const ctxText = `${fmtTok(s.ctx)} / ${fmtTok(s.window)} (${pct}%)`;
+  const p = pressureName(pct);
+  const reading = `${fmtTok(s.ctx)} / ${fmtTok(s.window)}`;
 
   const footer = [
     ["turnos", s.turns ?? "—"],
@@ -323,9 +427,14 @@ function renderCard(s, jobsBySession) {
     ["subagents", s.subagents ?? 0],
     ["compacts", s.compacts ?? 0],
     ["web reqs", (s.webSearches || 0) + (s.webFetches || 0)]
-  ].map(([label, v]) => `<div><div class="v">${esc(String(v))}</div>${esc(label)}</div>`).join("");
+  ].map(([label, v]) =>
+    `<div class="cell"><span class="k">${esc(label)}</span><span class="v">${esc(String(v))}</span></div>`
+  ).join("");
 
-  return `<article class="card${s.live ? "" : " inactive"}" data-id="${esc(s.id)}">
+  // --pressure/-t alimentam a borda esquerda, o numeral e a sparkline.
+  const style = `--pressure:var(--${p});--pressure-t:var(--${p}-t)`;
+
+  return `<article class="card${s.live ? "" : " inactive"}" data-id="${esc(s.id)}" style="${style}" tabindex="0">
     <div class="card-top">
       ${dot}
       <div class="title" title="${title}">${title}</div>
@@ -333,8 +442,12 @@ function renderCard(s, jobsBySession) {
     </div>
     <div class="subline">${sub}</div>
     <div class="ctx-block">
-      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
-      <div class="ctx-text"><b>${esc(ctxText)}</b><span class="spark">${sparkline(s.sparkline)}</span></div>
+      <div class="ctx-hero">
+        <span class="pct">${esc(String(pct))}<span style="font-size:0.5em;font-weight:500">%</span></span>
+        <span class="reading">${esc(reading)}</span>
+        <span class="spark">${sparkline(s.sparkline)}</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:var(--${p})"></div></div>
       <div class="trend">${esc(trendLabel(s))}</div>
     </div>
     <div class="footer-grid">${footer}</div>
@@ -507,11 +620,39 @@ document.getElementById("detail").addEventListener("click", e => {
 let showAll = false;
 let lastData = { sessions: [], jobs: [] };
 
+// Cores do effortLevel espelham o terminal (low=verde, medium=âmbar,
+// high=magenta) e estendem para xhigh na mesma família. Valor desconhecido
+// (ex.: "auto") cai no neutro — não se inventa cor para o que não se conhece.
+const EFFORT_COLOR = {
+  low: "#2f9e44",
+  medium: "#e8a33d",
+  high: "#7048e8",
+  xhigh: "#ae3ec9"
+};
+
+function renderConfig(config) {
+  const el = document.getElementById("config");
+  if (!el) return;
+  const cfg = config || {};
+  if (!cfg.model && !cfg.effortLevel) { el.innerHTML = ""; return; }
+
+  const parts = ['<span class="k">config</span>'];
+  if (cfg.model) parts.push(`<span class="chip">${esc(cfg.model)}</span>`);
+  if (cfg.effortLevel) {
+    const c = EFFORT_COLOR[cfg.effortLevel];
+    const style = c ? `background:${c}` : "";
+    parts.push(`<span class="chip${c ? " ef" : ""}" style="${style}">ef:${esc(cfg.effortLevel)}</span>`);
+  }
+  el.innerHTML = parts.join("");
+}
+
 function render(d) {
   lastData = d;
   const grid = document.getElementById("grid");
   const empty = document.getElementById("empty");
   const jobsBySession = new Map((d.jobs || []).map(j => [j.sessionId, j]));
+
+  renderConfig(d.config);
 
   const sessions = (d.sessions || []).filter(s => showAll || s.live);
   document.getElementById("liveCount").textContent = (d.sessions || []).filter(s => s.live).length;

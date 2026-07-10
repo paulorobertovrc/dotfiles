@@ -38,7 +38,14 @@ function buildSnapshot(home = os.homedir(), opts = {}) {
     });
   }
   sessions.sort((a, b) => (b.live - a.live) || (b.mtime - a.mtime));
-  return { sessions, jobs: lib.backgroundJobs(home), generatedAt: Date.now() };
+  // `config` é a configuração ATIVA do CLI, não propriedade de sessão alguma —
+  // a UI a exibe uma vez no cabeçalho, rotulada como config, nunca por card.
+  return {
+    sessions,
+    jobs: lib.backgroundJobs(home),
+    config: lib.readSettings(home),
+    generatedAt: Date.now()
+  };
 }
 
 function sendJson(res, obj, status = 200) {
@@ -144,17 +151,29 @@ function openBrowser(url) {
   return false;
 }
 
+// O callback de srv.listen(port, host, cb) é registrado como listener
+// PERSISTENTE do evento "listening", não como one-shot daquela chamada. No
+// retry por EADDRINUSE o listener da porta ocupada continuava vivo e disparava
+// junto com o novo — o CLI anunciava (e abria no browser) a URL errada.
+// Por isso os listeners são explicitamente pareados e removidos aqui.
 function listenWithFallback(srv, port, tries, cb) {
-  srv.once("error", e => {
+  const onError = e => {
     if (e.code === "EADDRINUSE" && tries > 0) {
+      srv.removeListener("listening", onListening);
       console.error("porta " + port + " ocupada — tentando " + (port + 1));
       listenWithFallback(srv, port + 1, tries - 1, cb);
     } else { throw e; }
-  });
-  srv.listen(port, "127.0.0.1", () => cb(port));
+  };
+  const onListening = () => {
+    srv.removeListener("error", onError);
+    cb(port);
+  };
+  srv.once("error", onError);
+  srv.once("listening", onListening);
+  srv.listen(port, "127.0.0.1");
 }
 
-module.exports = { buildSnapshot, createServer, DEFAULT_PORT };
+module.exports = { buildSnapshot, createServer, listenWithFallback, DEFAULT_PORT };
 
 if (require.main === module) {
   const pi = process.argv.indexOf("--port");

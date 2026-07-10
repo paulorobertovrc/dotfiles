@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert");
 const path = require("node:path");
 const http = require("node:http");
-const { buildSnapshot, createServer } = require("../ctx-dash.js");
+const { buildSnapshot, createServer, listenWithFallback } = require("../ctx-dash.js");
 
 const HOME = path.join(__dirname, "fixtures", "home");
 
@@ -79,4 +79,27 @@ test("servidor rejeita Host forjado (403) e aceita Host 127.0.0.1 normal (200) �
   assert.strictEqual(ok.status, 200);
 
   await new Promise(r => srv.close(r));
+});
+
+test("listenWithFallback chama o callback UMA vez, com a porta realmente aberta", async () => {
+  // Ocupa uma porta efêmera para forçar o EADDRINUSE.
+  const blocker = http.createServer(() => {});
+  await new Promise(r => blocker.listen(0, "127.0.0.1", r));
+  const busy = blocker.address().port;
+
+  const srv = createServer({ home: HOME, isAlive: () => false });
+  const ports = [];
+  await new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error("listenWithFallback não chamou o callback")), 3000);
+    listenWithFallback(srv, busy, 5, p => { ports.push(p); clearTimeout(t); resolve(); });
+  });
+
+  // O bug original: o callback do listen(port, host, cb) fica registrado como
+  // listener persistente de "listening", então o retry disparava o callback
+  // duas vezes — uma com a porta ocupada (URL errada) e outra com a real.
+  assert.deepStrictEqual(ports, [busy + 1], "callback deve rodar 1x, com a porta aberta");
+  assert.strictEqual(srv.address().port, busy + 1, "servidor escuta na porta reportada");
+
+  await new Promise(r => srv.close(r));
+  await new Promise(r => blocker.close(r));
 });

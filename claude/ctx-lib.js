@@ -3,6 +3,18 @@ const fs = require("fs"), path = require("path"), os = require("os"), cp = requi
 
 const TIERS = [200000, 1000000];
 
+// Configuração ATIVA do CLI (~/.claude/settings.json). É estado global do
+// Claude Code, não propriedade de uma sessão: `model` é o padrão configurado,
+// e sessões podem trocar de modelo em runtime via /model (verificado: uma
+// sessão real fez opus → fable → opus). Quem exibir isso deve rotular como
+// config, nunca como "o modelo desta sessão".
+function readSettings(home = os.homedir()) {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(home, ".claude", "settings.json"), "utf8"));
+    return { model: cfg.model || "", effortLevel: cfg.effortLevel || "" };
+  } catch { return { model: "", effortLevel: "" }; }
+}
+
 // A varredura de /mnt/{c,d,e}/Users/*/.claude/projects é comportamento de
 // PRODUÇÃO (achar sessões do Windows quando rodando em WSL) — só se aplica
 // quando `home` é o os.homedir() real (ou não foi passado explicitamente).
@@ -432,5 +444,5 @@ function workflowsFor(file) {
 module.exports = {
   TIERS, roots, indexAll, liveProcs, readInfo, whereName, tierFor, scanWindow, windowFor, tailRead,
   fullArgs, procCwd, liveSessions, procStartOf, sessionMetrics, timeline, trend, PRICES, costOf,
-  subagentsFor, backgroundJobs, workflowsFor, transcriptDir
+  subagentsFor, backgroundJobs, workflowsFor, transcriptDir, readSettings
 };

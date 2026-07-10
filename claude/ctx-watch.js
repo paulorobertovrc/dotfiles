@@ -17,18 +17,13 @@ const age = (ms, now) => {
 const trunc = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 const clockOf = now => new Date(now).toTimeString().slice(0, 8);
 
-function readEffort(home) {
-  try {
-    const cfg = JSON.parse(fs.readFileSync(path.join(home, ".claude", "settings.json"), "utf8"));
-    return cfg.effortLevel || "";
-  } catch { return ""; }
-}
-
 function render(opts = {}) {
   const home = opts.home || os.homedir();
   const now = opts.now || Date.now();
   const ALL = !!opts.all, WATCH = !!opts.watch;
-  const effortLevel = opts.effortLevel !== undefined ? opts.effortLevel : readEffort(home);
+  const effortLevel = opts.effortLevel !== undefined
+    ? opts.effortLevel
+    : lib.readSettings(home).effortLevel;
 
   const idx = lib.indexAll(home);
   const liveIds = new Set(), liveCwd = new Map();
