@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const path = require("node:path");
+const http = require("node:http");
 const { buildSnapshot, createServer } = require("../ctx-dash.js");
 
 const HOME = path.join(__dirname, "fixtures", "home");
@@ -49,4 +50,33 @@ test("srv.close() encerra mesmo com cliente SSE conectado (não trava)", async (
   assert.strictEqual(closed, true, "srv.close() deve chamar o callback mesmo com SSE aberto, sem travar");
 
   try { res.body && res.body.cancel && res.body.cancel(); } catch {}
+});
+
+test("servidor rejeita Host forjado (403) e aceita Host 127.0.0.1 normal (200) — defesa DNS rebinding", async () => {
+  const srv = createServer({ home: HOME, isAlive: () => true });
+  await new Promise(r => srv.listen(0, "127.0.0.1", r));
+  const port = srv.address().port;
+
+  // fetch (undici) proíbe sobrescrever o header Host — ele é silenciosamente
+  // ignorado/realinhado com a URL real, então não simula o ataque. Só o
+  // http.request de baixo nível, com setHost:false, consegue de fato mandar
+  // um Host arbitrário na requisição — o mesmo vetor que um DNS rebinding
+  // exploraria (o browser resolve um domínio atacante para 127.0.0.1, mas o
+  // header Host chega com o nome do atacante).
+  const evilStatus = await new Promise((resolve, reject) => {
+    const req = http.request({
+      host: "127.0.0.1", port, path: "/api/sessions", method: "GET",
+      setHost: false, headers: { Host: "evil.com" }
+    }, res => { res.resume(); resolve(res.statusCode); });
+    req.on("error", reject);
+    req.end();
+  });
+  assert.strictEqual(evilStatus, 403);
+
+  // fetch batendo direto em http://127.0.0.1:<porta>/... já envia Host: 127.0.0.1:<porta>
+  // por padrão — sem override, exercitando o caminho normal.
+  const ok = await fetch(`http://127.0.0.1:${port}/api/sessions`);
+  assert.strictEqual(ok.status, 200);
+
+  await new Promise(r => srv.close(r));
 });

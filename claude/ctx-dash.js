@@ -52,6 +52,15 @@ function createServer(opts = {}) {
   const clients = new Set();
 
   const srv = http.createServer((req, res) => {
+    // Proteção contra DNS rebinding: o servidor faz bind em 127.0.0.1, mas sem
+    // validar o Host uma página maliciosa aberta no browser do usuário poderia
+    // fazer o próprio browser resolver um domínio atacante para 127.0.0.1 e
+    // disparar requests que chegam aqui com um Host arbitrário. Só aceitar
+    // Host de loopback/localhost fecha essa brecha.
+    const hostHeader = (req.headers.host || "").split(":")[0];
+    if (hostHeader !== "127.0.0.1" && hostHeader !== "localhost") {
+      res.writeHead(403); return res.end("forbidden");
+    }
     if (req.method !== "GET") return sendJson(res, { error: "somente leitura" }, 405);
     const url = new URL(req.url, "http://127.0.0.1");
 
