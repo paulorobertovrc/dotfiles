@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ctx-dash</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f5f7;
+    --card-bg: #ffffff;
+    --fg: #1a1b1e;
+    --muted: #6b7280;
+    --border: #e1e3e8;
+    --track: #e9ecef;
+    --accent: #364fc7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17181c;
+      --card-bg: #232429;
+      --fg: #e9ecef;
+      --muted: #9aa1ab;
+      --border: #33353c;
+      --track: #35373d;
+      --accent: #7f9dff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+  }
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 0.85rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--card-bg);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 {
+    font-size: 1rem;
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  header .stat { font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
+  header .stat b { color: var(--fg); }
+  header .spacer { flex: 1; }
+  header label {
+    font-size: 0.85rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    user-select: none;
+  }
+  #clock { font-variant-numeric: tabular-nums; font-size: 0.85rem; color: var(--muted); }
+
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+  #empty { padding: 2rem; color: var(--muted); text-align: center; display: none; }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.9rem 1rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .card.inactive { opacity: 0.55; }
+
+  .card-top {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .dot { color: #2f9e44; font-size: 0.8rem; line-height: 1; }
+  .title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+  .badges { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+  .badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .subline {
+    font-size: 0.78rem;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ctx-block { display: flex; flex-direction: column; gap: 0.3rem; }
+  .bar-track {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--track);
+    overflow: hidden;
+  }
+  .bar-fill { height: 100%; border-radius: 4px; }
+  .ctx-text {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  .ctx-text b { color: var(--fg); font-size: 0.85rem; }
+  .spark { color: var(--accent); line-height: 0; }
+  .trend { font-size: 0.75rem; color: var(--muted); }
+
+  .footer-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, auto);
+    gap: 0.35rem 0.5rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+  .footer-grid .v { color: var(--fg); font-weight: 600; }
+
+  @media (prefers-color-scheme: dark) {
+    .bar-track { background: var(--track); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>ctx-dash</h1>
+  <div class="stat"><b id="liveCount">0</b> vivas</div>
+  <div class="stat"><b id="jobCount">0</b> jobs ativos</div>
+  <div class="spacer"></div>
+  <label><input type="checkbox" id="showAllToggle"> mostrar inativas</label>
+  <div id="clock">--:--:--</div>
+</header>
+
+<div id="grid"></div>
+<div id="empty">nenhuma sessão inativa oculta — nada para mostrar</div>
+
+<script>
+"use strict";
+
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const MODE_STYLE = {
+  bypassPermissions: { bg: "#e03131", fg: "#fff" },   // único perigoso
+  plan:              { bg: "#5f3dc4", fg: "#fff" },   // read-only, deliberando
+  acceptEdits:       { bg: "#e8a33d", fg: "#000" },
+  default:           { bg: "#868e96", fg: "#fff" },
+  auto:              null                              // linha de base: sem badge
+};
+
+function pctColor(pct) {
+  if (pct >= 80) return "#e03131";
+  if (pct >= 50) return "#e8a33d";
+  return "#2f9e44";
+}
+
+function costLabel(cost) {
+  if (cost == null) return "—";
+  const usd = "$" + cost.usd.toFixed(2);
+  return cost.partial ? usd + "+ (parcial)" : usd;
+}
+
+function fmtTok(n) {
+  if (n == null) return "0";
+  if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k";
+  return String(n);
+}
+
+function sparkline(values, w = 160, h = 28) {
+  if (!values || values.length < 2) return "";
+  const max = Math.max(...values) || 1;
+  const pts = values.map((v, i) =>
+    `${(i / (values.length - 1) * w).toFixed(1)},${(h - v / max * h).toFixed(1)}`).join(" ");
+  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true">
+    <polyline fill="none" stroke="currentColor" stroke-width="1.5" points="${pts}"/></svg>`;
+}
+
+function trendLabel(s) {
+  if (!s.tokensPerMin || s.tokensPerMin <= 0) return "→ estável";
+  const rate = fmtTok(Math.round(s.tokensPerMin)) + " tok/min";
+  if (s.etaMinutes == null) return "↑ " + rate;
+  return "↑ " + rate + " · cheio em ~" + Math.round(s.etaMinutes) + " min";
+}
+
+function badge(text, style) {
+  if (!style) return "";
+  return `<span class="badge" style="background:${style.bg};color:${style.fg}">${esc(text)}</span>`;
+}
+
+function renderCard(s, jobsBySession) {
+  const modeStyle = MODE_STYLE[s.permissionMode] !== undefined ? MODE_STYLE[s.permissionMode] : MODE_STYLE.default;
+  const title = esc(s.title || s.id.slice(0, 8));
+  const dot = s.live ? '<span class="dot">●</span>' : "";
+  const job = jobsBySession.get(s.id);
+
+  const badges = [
+    badge(s.permissionMode || "default", modeStyle),
+    s.speed ? badge(s.speed, MODE_STYLE.default) : "",
+    job ? badge("bg: " + (job.state || job.id), MODE_STYLE.default) : ""
+  ].filter(Boolean).join("");
+
+  const sub = [esc(s.where), esc(s.branch), esc(s.model), s.version ? "v" + esc(s.version) : ""]
+    .filter(Boolean).join(" · ");
+
+  const pct = Math.round(s.pctFull || 0);
+  const color = pctColor(pct);
+  const ctxText = `${fmtTok(s.ctx)} / ${fmtTok(s.window)} (${pct}%)`;
+
+  const footer = [
+    ["turnos", s.turns ?? "—"],
+    ["cache", s.cacheHitPct != null ? Math.round(s.cacheHitPct) + "%" : "—"],
+    ["custo", costLabel(s.cost)],
+    ["subagents", s.subagents ?? 0],
+    ["compacts", s.compacts ?? 0],
+    ["web reqs", (s.webSearches || 0) + (s.webFetches || 0)]
+  ].map(([label, v]) => `<div><div class="v">${esc(String(v))}</div>${esc(label)}</div>`).join("");
+
+  return `<article class="card${s.live ? "" : " inactive"}" data-id="${esc(s.id)}">
+    <div class="card-top">
+      ${dot}
+      <div class="title" title="${title}">${title}</div>
+      <div class="badges">${badges}</div>
+    </div>
+    <div class="subline">${sub}</div>
+    <div class="ctx-block">
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="ctx-text"><b>${esc(ctxText)}</b><span class="spark">${sparkline(s.sparkline)}</span></div>
+      <div class="trend">${esc(trendLabel(s))}</div>
+    </div>
+    <div class="footer-grid">${footer}</div>
+  </article>`;
+}
+
+let showAll = false;
+let lastData = { sessions: [], jobs: [] };
+
+function render(d) {
+  lastData = d;
+  const grid = document.getElementById("grid");
+  const empty = document.getElementById("empty");
+  const jobsBySession = new Map((d.jobs || []).map(j => [j.sessionId, j]));
+
+  const sessions = (d.sessions || []).filter(s => showAll || s.live);
+  document.getElementById("liveCount").textContent = (d.sessions || []).filter(s => s.live).length;
+  document.getElementById("jobCount").textContent = (d.jobs || []).length;
+
+  if (!sessions.length) {
+    grid.innerHTML = "";
+    empty.style.display = "block";
+    return;
+  }
+  empty.style.display = "none";
+  grid.innerHTML = sessions.map(s => renderCard(s, jobsBySession)).join("");
+}
+
+async function refresh() {
+  try {
+    const r = await fetch("/api/sessions");
+    const d = await r.json();
+    render(d);
+  } catch {}
+}
+
+document.getElementById("showAllToggle").addEventListener("change", e => {
+  showAll = e.target.checked;
+  render(lastData);
+});
+
+function tickClock() {
+  document.getElementById("clock").textContent = new Date().toLocaleTimeString();
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+try {
+  new EventSource("/api/events").addEventListener("change", refresh);
+} catch {}
+setInterval(refresh, 5000);   // idades e detecção de processo entrando/saindo
+refresh();
+</script>
+</body>
+</html>
