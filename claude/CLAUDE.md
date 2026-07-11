@@ -20,7 +20,12 @@
   implementação padrão a partir de design travado. **Decidir vs. executar:** tarefas mecânicas
   (gravar memória, criar/mover tickets, transcrever escopo já fechado) rodam leve (Haiku),
   independentemente do modelo que produziu a decisão; só sobe quando o próprio ato embute
-  julgamento (dedup/reorg ambíguo, redigir escopo do zero).
+  julgamento (dedup/reorg ambíguo, redigir escopo do zero). **Ancoragem nos níveis reais do
+  Claude Code:** 1=`low` · 2=`medium` · 3=`high` (default) · 4=`xhigh` · 5=`max` (só a sessão) ·
+  6=`ultracode` (envia `xhigh` + orquestra workflows; só a sessão); Haiku não tem effort — o
+  1–2 é rigor conceitual. **Trocar effort no meio da tarefa invalida o cache de prompt** (cada
+  nível tem cache próprio) — ajustar entre tarefas, idealmente com `/clear`. Exceções por modelo
+  e fundamentação (fontes verificadas 2026-07-11): `~/dev/dotfiles/docs/estrategia-modelos-claude-code.md`.
 - **Higiene de contexto:** sinalizar quando convém `/compact` — pontos de corte, antes de tarefas
   pesadas, sessão longa.
 - **Postura defensiva:** quando o custo é barato, quanto mais travas/validações, melhor.

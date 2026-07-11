@@ -36,6 +36,15 @@ Aliases adicionados ao `~/.zshrc`:
   leitura** — sem qualquer escrita ou controle de sessão. Spec completa em
   [`docs/superpowers/specs/2026-07-10-ctx-dash-design.md`](docs/superpowers/specs/2026-07-10-ctx-dash-design.md).
 
+### `docs/` — referência (não instalada)
+
+- [`estrategia-modelos-claude-code.md`](docs/estrategia-modelos-claude-code.md) — seleção de
+  **modelo × effort** no Claude Code: papéis e pricing por modelo, níveis de effort e defaults,
+  mapeamento da escala interna 1–5/6 nos níveis reais, comandos e higiene de custo. Claims
+  verificadas nas fontes oficiais (data da revisão no cabeçalho). Fundamenta a rubrica
+  "Modelo + esforço por passo" do `claude/CLAUDE.md`.
+- `superpowers/` — specs e planos de features dos próprios dotfiles (ctx-dash).
+
 ## Notas
 
 - A status line **só renderiza no modo terminal/CLI** do Claude, não no painel gráfico
