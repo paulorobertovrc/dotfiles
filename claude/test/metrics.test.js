@@ -59,4 +59,5 @@ test("sessionMetrics ignora mensagens sintéticas de erro 429 (E4)", () => {
   assert.deepStrictEqual(Object.keys(m.byModel), ["claude-opus-4-8"]);
   assert.strictEqual(m.byModel["<synthetic>"], undefined);
   assert.strictEqual(m.totals.output, 50);       // só o turno real conta
+  assert.strictEqual(m.turns, 1);                // stub sintético não conta como turno
 });

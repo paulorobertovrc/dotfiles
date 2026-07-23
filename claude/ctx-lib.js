@@ -224,15 +224,16 @@ function sessionMetrics(file) {
       if (o.compactMetadata.preTokens > peak) peak = o.compactMetadata.preTokens;
     }
 
-    if (o.type === "assistant") m.turns++;
-
     const msg = o.message;
+    const isSynthetic = o.isApiErrorMessage || (msg && msg.model === "<synthetic>");
+    if (o.type === "assistant" && !isSynthetic) m.turns++;
+
     if (msg && Array.isArray(msg.content)) {
       for (const c of msg.content) if (c && c.type === "tool_use") m.tools[c.name] = (m.tools[c.name] || 0) + 1;
     }
 
     const u = msg && msg.usage;
-    if (u && u.input_tokens != null && !o.isApiErrorMessage && msg.model !== "<synthetic>") {
+    if (u && u.input_tokens != null && !isSynthetic) {
       const inp = u.input_tokens || 0, cr = u.cache_read_input_tokens || 0, cc = u.cache_creation_input_tokens || 0;
       const total = inp + cr + cc;
       if (total > peak) peak = total;
