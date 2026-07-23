@@ -14,6 +14,8 @@ const FILE_BUCKETS = path.join(__dirname, "fixtures", "bucket-split",
   "bbbbbbbb-0000-0000-0000-000000000002.jsonl");
 const FILE_TWO_MODELS = path.join(__dirname, "fixtures", "two-models",
   "cccccccc-0000-0000-0000-000000000003.jsonl");
+const FILE_SYNTH = path.join(__dirname, "fixtures", "synthetic",
+  "dddddddd-0000-0000-0000-000000000004.jsonl");
 
 test("sessionMetrics deriva contexto, turnos, cache hit e modo", () => {
   const m = lib.sessionMetrics(FILE);
@@ -50,4 +52,11 @@ test("sessionMetrics.byModel acumula em chaves separadas quando o transcript tro
   assert.strictEqual(m.byModel["claude-opus-4-8"].short.output, 50);
   assert.strictEqual(m.byModel["claude-haiku-4-5-20251001"].short.input, 200);
   assert.strictEqual(m.byModel["claude-haiku-4-5-20251001"].short.output, 80);
+});
+
+test("sessionMetrics ignora mensagens sintéticas de erro 429 (E4)", () => {
+  const m = lib.sessionMetrics(FILE_SYNTH);
+  assert.deepStrictEqual(Object.keys(m.byModel), ["claude-opus-4-8"]);
+  assert.strictEqual(m.byModel["<synthetic>"], undefined);
+  assert.strictEqual(m.totals.output, 50);       // só o turno real conta
 });

@@ -232,7 +232,7 @@ function sessionMetrics(file) {
     }
 
     const u = msg && msg.usage;
-    if (u && u.input_tokens != null) {
+    if (u && u.input_tokens != null && !o.isApiErrorMessage && msg.model !== "<synthetic>") {
       const inp = u.input_tokens || 0, cr = u.cache_read_input_tokens || 0, cc = u.cache_creation_input_tokens || 0;
       const total = inp + cr + cc;
       if (total > peak) peak = total;
