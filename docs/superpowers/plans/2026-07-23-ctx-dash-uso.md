@@ -6,7 +6,7 @@
 
 **Architecture:** Estende `ctx-lib.js` com extração por-turno (`usageEvents`), detecção de rate-limit (`rateLimitEvents`) e agregação temporal (`aggregateUsage`), tudo cacheado por mtime como o resto da lib. O servidor ganha `/api/usage` com compute assíncrono e invalidação por evento. A página ganha uma aba que alterna com o grid e renderiza os agregados em SVG à mão.
 
-**Tech Stack:** Node.js ≥18, zero dependências externas, `node:test` nativo (`node --test claude/test`), `node:http`, SVG à mão. Fonte de dados: transcripts `~/.claude/projects/*/*.jsonl` + `subagents/agent-*.jsonl`.
+**Tech Stack:** Node.js ≥18, zero dependências externas, `node:test` nativo (`node --test`, sem argumento, rodado da raiz do repo — descoberta recursiva automática), `node:http`, SVG à mão. Fonte de dados: transcripts `~/.claude/projects/*/*.jsonl` + `subagents/agent-*.jsonl`.
 
 ## Global Constraints
 
@@ -16,7 +16,7 @@
 - **Rótulos honestos** — "últimas 5h (móvel)", "últimos 7 dias", "acumulado (transcripts retidos desde …)"; nunca fingir a mecânica exata do plano.
 - **Agregado lê só o home real** — `path.join(home, ".claude", "projects")`, **não** `/mnt` (E6). Difere de `roots()`, que varre `/mnt` para descoberta ao vivo.
 - **Sintéticas filtradas** — linhas com `isApiErrorMessage` ou `model === "<synthetic>"` ou usage integralmente zero não entram em nenhum agregado nem no `sessionMetrics` (E4).
-- **Testes rodam com** `node --test claude/test` a partir da raiz do repo.
+- **Testes rodam com** `node --test` (sem argumento de caminho — `node --test claude/test` **falha sempre** neste ambiente, tratando o diretório como script de entrada em vez de acionar a descoberta recursiva; use arquivo explícito para um teste isolado, ou `node --test` puro da raiz do repo para a suíte inteira).
 
 ---
 
@@ -734,7 +734,7 @@ Expected: PASS (todos, inclusive os antigos).
 
 - [ ] **Step 5: Rodar a suíte inteira**
 
-Run: `node --test claude/test`
+Run: `node --test` (sem argumento, da raiz do repo — descoberta recursiva automática)
 Expected: PASS em todos os arquivos.
 
 - [ ] **Step 6: Commit**
@@ -978,7 +978,7 @@ No browser, aba **Uso**: conferir (a) a série diária como barras com tooltip p
 
 - [ ] **Step 5: Rodar a suíte inteira (garante que nada de lib/servidor regrediu)**
 
-Run: `node --test claude/test`
+Run: `node --test` (sem argumento, da raiz do repo — descoberta recursiva automática)
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
