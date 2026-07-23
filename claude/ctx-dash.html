@@ -136,6 +136,12 @@
     font-size: 1.4rem; }
   .usage-tile .usd { color: var(--fg); font-size: 0.9rem; }
   .usage-tile .partial { color: var(--warn, #d0a000); font-size: 0.72rem; }
+  .usage-section-title { color: var(--muted); font-size: 0.8rem; margin: 16px 0 6px; }
+  .model-row { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; margin: 2px 0; }
+  .model-row .name { width: 180px; color: var(--fg); }
+  .model-row .bar { height: 10px; background: var(--accent, #4a90d9); border-radius: 3px; }
+  .rl-event { font-size: 0.82rem; color: var(--warn, #d0a000); margin: 2px 0; }
+  .rl-event .when { color: var(--muted); }
 
   #grid {
     display: grid;
@@ -740,12 +746,52 @@ function usageTile(label, period) {
     ${cost && cost.partial ? '<div class="partial">$ parcial (modelo sem preço)</div>' : ""}
   </div>`;
 }
+function renderModelBreakdown(byModel) {
+  const rows = Object.entries(byModel || {})
+    .map(([m, buckets]) => [m, sumTokens({ x: buckets })])
+    .sort((a, b) => b[1] - a[1]);
+  const max = rows.length ? rows[0][1] : 0;
+  return rows.map(([m, t]) =>
+    `<div class="model-row"><span class="name">${esc(m.replace("claude-", ""))}</span>` +
+    `<span class="bar" style="width:${max ? Math.max(2, t / max * 320) : 2}px"></span>` +
+    `<span class="num">${fmtTokens(t)}</span></div>`).join("");
+}
+
+function renderDailySeries(daily) {
+  if (!daily.length) return '<div class="empty-note">sem atividade nos últimos 30 dias</div>';
+  const vals = daily.map(d => sumTokens(d.byModel));
+  const max = Math.max(...vals, 1);
+  const w = 640, h = 120, bw = Math.max(2, w / daily.length - 2);
+  const bars = daily.map((d, i) => {
+    const bh = sumTokens(d.byModel) / max * h;
+    const x = i * (w / daily.length);
+    return `<rect x="${x.toFixed(1)}" y="${(h - bh).toFixed(1)}" width="${bw.toFixed(1)}" ` +
+      `height="${bh.toFixed(1)}" fill="var(--accent,#4a90d9)"><title>${esc(d.date)}: ` +
+      `${fmtTokens(sumTokens(d.byModel))} · ${fmtUsd(d.cost)}</title></rect>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none">${bars}</svg>`;
+}
+
+function renderRateLimits(events) {
+  if (!events || !events.length) return '<div class="empty-note">nenhum teto de sessão atingido no histórico retido</div>';
+  return events.map(e =>
+    `<div class="rl-event"><span class="when">${esc(new Date(e.ts).toLocaleString())}</span> — ` +
+    `${esc(e.text || "limite de sessão")}</div>`).join("");
+}
+
 function renderUsage(u) {
   const oldest = u.oldestTs ? new Date(u.oldestTs).toLocaleDateString() : "—";
   document.getElementById("usageTiles").innerHTML =
     usageTile("últimas 5h (móvel)", u.win5h)
     + usageTile("últimos 7 dias", u.week7d)
     + usageTile("acumulado (retido desde " + esc(oldest) + ")", u.allTime);
+  document.getElementById("usageBody").innerHTML =
+    '<div class="usage-section-title">série diária (30d, tokens/dia)</div>'
+    + renderDailySeries(u.daily)
+    + '<div class="usage-section-title">acumulado por modelo</div>'
+    + renderModelBreakdown(u.allTime.byModel)
+    + '<div class="usage-section-title">tetos de sessão atingidos</div>'
+    + renderRateLimits(u.rateLimits);
 }
 
 async function refreshUsage() {
