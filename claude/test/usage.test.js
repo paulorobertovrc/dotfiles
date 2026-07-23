@@ -52,3 +52,30 @@ test("PRICES cobre Sonnet 5 → costOf não marca parcial para Sonnet (E7)", () 
   assert.ok(c && c.partial === false, "Sonnet deve ter preço verificado");
   assert.ok(c.usd > 0, "custo do Sonnet deve ser > 0");
 });
+
+const USAGE_HOME = path.join(__dirname, "fixtures", "usage-home");
+const NOW = Date.parse("2026-07-23T12:00:00.000Z");
+
+test("aggregateUsage separa janelas 5h/7d/acumulado por-modelo (E4/E6)", () => {
+  const a = lib.aggregateUsage(USAGE_HOME, NOW);
+  // 5h: só o turno de -1h (opus). Sonnet(-2d) e haiku(-40d) fora; sintética fora.
+  assert.deepStrictEqual(Object.keys(a.win5h.byModel), ["claude-opus-4-8"]);
+  assert.strictEqual(a.win5h.byModel["claude-opus-4-8"].short.input, 1000);
+  // 7d: opus + sonnet; haiku(-40d) fora.
+  assert.deepStrictEqual(Object.keys(a.week7d.byModel).sort(),
+    ["claude-opus-4-8", "claude-sonnet-5"]);
+  // acumulado: os 3 modelos reais, nunca "<synthetic>".
+  assert.deepStrictEqual(Object.keys(a.allTime.byModel).sort(),
+    ["claude-haiku-4-5-20251001", "claude-opus-4-8", "claude-sonnet-5"]);
+  assert.strictEqual(a.allTime.byModel["<synthetic>"], undefined);
+});
+
+test("aggregateUsage: série diária dentro de 30d, oldestTs e custo não-parcial", () => {
+  const a = lib.aggregateUsage(USAGE_HOME, NOW);
+  // dias distintos em 30d: -1h e -2d (o de -40d fica fora).
+  assert.strictEqual(a.daily.length, 2);
+  assert.strictEqual(a.oldestTs, Date.parse("2026-06-13T12:00:00.000Z"));
+  // opus + sonnet + haiku todos com preço → parcial falso.
+  assert.strictEqual(a.allTime.cost.partial, false);
+  assert.ok(a.allTime.cost.usd > 0);
+});

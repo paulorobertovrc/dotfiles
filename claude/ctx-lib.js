@@ -334,6 +334,77 @@ function rateLimitEvents(file) {
   return out;
 }
 
+// Soma um usageEvent no byModel no formato de sessionMetrics.byModel, escolhendo
+// o bucket short/long pelo tamanho de contexto do turno (>200k = long).
+function addEventToByModel(byModel, ev) {
+  const total = ev.input + ev.cacheRead + ev.cc5m + ev.cc1h;
+  const bucketName = total <= 200000 ? "short" : "long";
+  const pm = byModel[ev.model] || (byModel[ev.model] = {});
+  const b = pm[bucketName] || (pm[bucketName] =
+    { input: 0, output: 0, cacheRead: 0, cacheCreation5m: 0, cacheCreation1h: 0 });
+  b.input += ev.input; b.output += ev.output; b.cacheRead += ev.cacheRead;
+  b.cacheCreation5m += ev.cc5m; b.cacheCreation1h += ev.cc1h;
+}
+
+// Chave de dia no fuso LOCAL da máquina (a assinatura reseta em horário local).
+function dayKey(ts) {
+  const d = new Date(ts);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return d.getFullYear() + "-" + mm + "-" + dd;
+}
+
+// Só o home REAL (E6): não varre /mnt (leitura via 9p do WSL seria minutos).
+function homeProjectFiles(home) {
+  const root = path.join(home, ".claude", "projects");
+  const out = [];
+  let projs; try { projs = fs.readdirSync(root); } catch { return out; }
+  for (const proj of projs) {
+    const pdir = path.join(root, proj);
+    let files; try { files = fs.readdirSync(pdir); } catch { continue; }
+    for (const f of files) if (f.endsWith(".jsonl")) out.push(path.join(pdir, f));
+  }
+  return out;
+}
+
+const FIVE_H = 5 * 3600 * 1000, SEVEN_D = 7 * 86400 * 1000, THIRTY_D = 30 * 86400 * 1000;
+
+function aggregateUsage(home = os.homedir(), nowMs = null) {
+  const now = nowMs == null ? Date.now() : nowMs;
+  const win5h = {}, week7d = {}, allTime = {};
+  const byDay = new Map();
+  let oldestTs = null;
+
+  // Dobra um usageEvent nos 4 buckets de uma vez (acumulado + janelas + dia).
+  // Único ponto de bucketing — Task 6 reusa esta mesma closure para os
+  // eventos de subagents, em vez de duplicar a lógica.
+  const foldEvent = (ev) => {
+    if (ev.ts && (oldestTs == null || ev.ts < oldestTs)) oldestTs = ev.ts;
+    addEventToByModel(allTime, ev);
+    if (now - ev.ts <= FIVE_H) addEventToByModel(win5h, ev);
+    if (now - ev.ts <= SEVEN_D) addEventToByModel(week7d, ev);
+    if (now - ev.ts <= THIRTY_D) {
+      const k = dayKey(ev.ts);
+      let bm = byDay.get(k); if (!bm) byDay.set(k, bm = {});
+      addEventToByModel(bm, ev);
+    }
+  };
+
+  for (const file of homeProjectFiles(home)) {
+    for (const ev of usageEvents(file)) foldEvent(ev);
+  }
+
+  const daily = [...byDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([date, byModel]) => ({ date, byModel, cost: costOf(byModel) }));
+
+  return {
+    win5h: { byModel: win5h, cost: costOf(win5h) },
+    week7d: { byModel: week7d, cost: costOf(week7d) },
+    allTime: { byModel: allTime, cost: costOf(allTime) },
+    daily, rateLimits: [], oldestTs, generatedAt: now
+  };
+}
+
 const timelineCache = new Map();
 
 // timeline(file) — extrai um ponto por turno de assistant (mais compactMetadata),
@@ -538,5 +609,5 @@ function workflowsFor(file) {
 module.exports = {
   TIERS, roots, indexAll, liveProcs, readInfo, whereName, tierFor, scanWindow, windowFor, tailRead,
   fullArgs, procCwd, liveSessions, procStartOf, sessionMetrics, usageEvents, rateLimitEvents, timeline, trend,
-  PRICES, costOf, subagentsFor, backgroundJobs, workflowsFor, transcriptDir, readSettings
+  PRICES, costOf, aggregateUsage, subagentsFor, backgroundJobs, workflowsFor, transcriptDir, readSettings
 };
