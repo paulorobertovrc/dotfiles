@@ -127,6 +127,18 @@ Reaproveita `indexAll`, `PRICES`, `costOf`, `subagentsFor`, `transcriptDir`.
   (America/Cuiaba), rotulado.
 - **Faixa de eventos rate-limit:** marcadores "bateu limite de sessão · reset HH:MM (data)".
 
+**De-scope consciente (registrado na revisão final whole-branch, 2026-07-23, aprovado pelo
+usuário):** o shipped da série diária 30d ficou mais simples do que o especificado acima —
+barras de **total/dia numa cor só** (sem empilhamento por modelo), **sem toggle** tokens↔$, e
+**sem rótulo de fuso horário visível na UI** (cada barra tem tooltip honesto com data·tokens·$,
+mas o fuso não é rotulado explicitamente). Motivo: a Task 10 do plano de implementação já
+especificou o código simplificado, e isso só foi percebido na revisão final — não é um bug, é uma
+divergência do design aprovado. Avaliado e aceito: empilhar 3-5 modelos num gráfico de 30 barras
+tende a virar ruído visual, e o tooltip por-barra já entrega o detalhe de custo indiretamente. A
+quebra por-modelo **do acumulado** (linha imediatamente acima) permanece implementada conforme o
+spec. Se o empilhamento/toggle/fuso fizerem falta na prática, é um follow-up de UI isolado, não
+um retrabalho da agregação de dados.
+
 ## Regra de verdade (travas)
 
 - **$ só para modelos com preço verificado**; badge **"parcial"** quando houver modelo sem preço
