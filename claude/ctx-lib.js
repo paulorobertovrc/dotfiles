@@ -269,6 +269,40 @@ function sessionMetrics(file) {
   return m;
 }
 
+const usageEventsCache = new Map();
+
+// usageEvents(file) — um registro por turno REAL (input_tokens != null), com
+// timestamp e o split de tokens necessário para precificar. Filtra sintéticas
+// (E4): isApiErrorMessage, modelo "<synthetic>" ou usage integralmente zero.
+// Cacheado por mtime, como sessionMetrics/timeline.
+function usageEvents(file) {
+  let mtime = 0; try { mtime = fs.statSync(file).mtimeMs; } catch { return []; }
+  const hit = usageEventsCache.get(file);
+  if (hit && hit.mtime === mtime) return hit.value;
+
+  const out = [];
+  let txt; try { txt = fs.readFileSync(file, "utf8"); } catch { return []; }
+  for (const line of txt.split("\n")) {
+    if (!line || line.indexOf('"usage"') < 0) continue;
+    let o; try { o = JSON.parse(line); } catch { continue; }
+    if (o.isApiErrorMessage) continue;
+    const msg = o.message; if (!msg || msg.model === "<synthetic>") continue;
+    const u = msg.usage; if (!u || u.input_tokens == null) continue;
+    const inp = u.input_tokens || 0, out_ = u.output_tokens || 0;
+    const cr = u.cache_read_input_tokens || 0;
+    const cw = u.cache_creation || {};
+    const cc5m = cw.ephemeral_5m_input_tokens || 0, cc1h = cw.ephemeral_1h_input_tokens || 0;
+    if (inp === 0 && out_ === 0 && cr === 0 && cc5m === 0 && cc1h === 0) continue;
+    out.push({
+      ts: Date.parse(o.timestamp || 0) || 0,
+      model: msg.model || "unknown",
+      input: inp, output: out_, cacheRead: cr, cc5m, cc1h
+    });
+  }
+  usageEventsCache.set(file, { mtime, value: out });
+  return out;
+}
+
 const timelineCache = new Map();
 
 // timeline(file) — extrai um ponto por turno de assistant (mais compactMetadata),
@@ -444,6 +478,6 @@ function workflowsFor(file) {
 
 module.exports = {
   TIERS, roots, indexAll, liveProcs, readInfo, whereName, tierFor, scanWindow, windowFor, tailRead,
-  fullArgs, procCwd, liveSessions, procStartOf, sessionMetrics, timeline, trend, PRICES, costOf,
-  subagentsFor, backgroundJobs, workflowsFor, transcriptDir, readSettings
+  fullArgs, procCwd, liveSessions, procStartOf, sessionMetrics, usageEvents, timeline, trend,
+  PRICES, costOf, subagentsFor, backgroundJobs, workflowsFor, transcriptDir, readSettings
 };
