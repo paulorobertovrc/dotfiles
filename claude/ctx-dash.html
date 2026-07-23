@@ -125,6 +125,18 @@
   }
   #config .chip.ef { color: #fff; }
 
+  #tabs { display: flex; gap: 4px; margin-left: 12px; }
+  .tab { background: none; border: 1px solid var(--muted); color: var(--muted);
+    border-radius: 6px; padding: 3px 10px; cursor: pointer; font-size: 0.85rem; }
+  .tab.active { color: var(--fg); border-color: var(--fg); }
+  .usage-tiles { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+  .usage-tile { border: 1px solid var(--muted); border-radius: 8px; padding: 10px 14px; min-width: 160px; }
+  .usage-tile .label { color: var(--muted); font-size: 0.78rem; }
+  .usage-tile .big { font-family: var(--font-data); font-variant-numeric: tabular-nums;
+    font-size: 1.4rem; }
+  .usage-tile .usd { color: var(--fg); font-size: 0.9rem; }
+  .usage-tile .partial { color: var(--warn, #d0a000); font-size: 0.72rem; }
+
   #grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -328,6 +340,10 @@
 <body>
 <header>
   <h1>ctx-dash</h1>
+  <nav id="tabs">
+    <button type="button" class="tab active" data-view="sessions">Sessões</button>
+    <button type="button" class="tab" data-view="usage">Uso</button>
+  </nav>
   <div class="stat"><b id="liveCount">0</b> vivas</div>
   <div class="stat"><b id="jobCount">0</b> jobs ativos</div>
   <div class="spacer"></div>
@@ -338,6 +354,12 @@
 
 <div id="grid"></div>
 <div id="empty">nenhuma sessão inativa oculta — nada para mostrar</div>
+
+<section id="usageView" hidden>
+  <div class="usage-tiles" id="usageTiles"></div>
+  <div id="usageComputing" class="empty-note">calculando uso do histórico…</div>
+  <div id="usageBody"></div>
+</section>
 
 <dialog id="detail">
   <div class="detail-head">
@@ -682,6 +704,68 @@ function render(d) {
   grid.innerHTML = sessions.map(s => renderCard(s, jobsBySession)).join("");
 }
 
+let currentView = "sessions";
+let usageData = null;
+
+function sumTokens(byModel) {
+  let t = 0;
+  for (const buckets of Object.values(byModel || {}))
+    for (const b of Object.values(buckets))
+      t += (b.input || 0) + (b.output || 0) + (b.cacheRead || 0)
+         + (b.cacheCreation5m || 0) + (b.cacheCreation1h || 0);
+  return t;
+}
+function fmtTokens(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + "B";
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + "k";
+  return String(n);
+}
+function fmtUsd(cost) {
+  if (!cost) return "—";
+  return "$" + cost.usd.toFixed(2) + (cost.partial ? " ⚠" : "");
+}
+function usageTile(label, period) {
+  const cost = period.cost;
+  return `<div class="usage-tile">
+    <div class="label">${esc(label)}</div>
+    <div class="big num">${fmtTokens(sumTokens(period.byModel))}</div>
+    <div class="usd num">${fmtUsd(cost)}</div>
+    ${cost && cost.partial ? '<div class="partial">$ parcial (modelo sem preço)</div>' : ""}
+  </div>`;
+}
+function renderUsage(u) {
+  const oldest = u.oldestTs ? new Date(u.oldestTs).toLocaleDateString() : "—";
+  document.getElementById("usageTiles").innerHTML =
+    usageTile("últimas 5h (móvel)", u.win5h)
+    + usageTile("últimos 7 dias", u.week7d)
+    + usageTile("acumulado (retido desde " + esc(oldest) + ")", u.allTime);
+}
+
+async function refreshUsage() {
+  const computing = document.getElementById("usageComputing");
+  try {
+    const d = await (await fetch("/api/usage")).json();
+    if (d.computing) { computing.style.display = "block"; return; }
+    computing.style.display = "none";
+    usageData = d;
+    renderUsage(d);
+  } catch {}
+}
+
+function setView(view) {
+  currentView = view;
+  document.querySelectorAll(".tab").forEach(t =>
+    t.classList.toggle("active", t.dataset.view === view));
+  document.getElementById("grid").hidden = view !== "sessions";
+  document.getElementById("empty").hidden = view !== "sessions";
+  document.getElementById("usageView").hidden = view !== "usage";
+  if (view === "usage") refreshUsage();
+}
+document.getElementById("tabs").addEventListener("click", e => {
+  const btn = e.target.closest(".tab"); if (btn) setView(btn.dataset.view);
+});
+
 async function refresh() {
   try {
     const r = await fetch("/api/sessions");
@@ -702,7 +786,10 @@ setInterval(tickClock, 1000);
 tickClock();
 
 try {
-  new EventSource("/api/events").addEventListener("change", refresh);
+  new EventSource("/api/events").addEventListener("change", () => {
+    refresh();
+    if (currentView === "usage") refreshUsage();
+  });
 } catch {}
 setInterval(refresh, 5000);   // idades e detecção de processo entrando/saindo
 refresh();
