@@ -58,12 +58,14 @@ const NOW = Date.parse("2026-07-23T12:00:00.000Z");
 
 test("aggregateUsage separa janelas 5h/7d/acumulado por-modelo (E4/E6)", () => {
   const a = lib.aggregateUsage(USAGE_HOME, NOW);
-  // 5h: só o turno de -1h (opus). Sonnet(-2d) e haiku(-40d) fora; sintética fora.
-  assert.deepStrictEqual(Object.keys(a.win5h.byModel), ["claude-opus-4-8"]);
+  // 5h: turno de -1h (opus) + subagent haiku do mesmo transcript (E1, Task 6).
+  // Sonnet(-2d) e haiku do acumulado (-40d) fora; sintética fora.
+  assert.deepStrictEqual(Object.keys(a.win5h.byModel).sort(),
+    ["claude-haiku-4-5-20251001", "claude-opus-4-8"]);
   assert.strictEqual(a.win5h.byModel["claude-opus-4-8"].short.input, 1000);
-  // 7d: opus + sonnet; haiku(-40d) fora.
+  // 7d: opus + sonnet + subagent haiku (-1h); haiku do acumulado (-40d) fora.
   assert.deepStrictEqual(Object.keys(a.week7d.byModel).sort(),
-    ["claude-opus-4-8", "claude-sonnet-5"]);
+    ["claude-haiku-4-5-20251001", "claude-opus-4-8", "claude-sonnet-5"]);
   // acumulado: os 3 modelos reais, nunca "<synthetic>".
   assert.deepStrictEqual(Object.keys(a.allTime.byModel).sort(),
     ["claude-haiku-4-5-20251001", "claude-opus-4-8", "claude-sonnet-5"]);
@@ -78,4 +80,13 @@ test("aggregateUsage: série diária dentro de 30d, oldestTs e custo não-parcia
   // opus + sonnet + haiku todos com preço → parcial falso.
   assert.strictEqual(a.allTime.cost.partial, false);
   assert.ok(a.allTime.cost.usd > 0);
+});
+
+test("aggregateUsage inclui tokens de subagents (E1)", () => {
+  const a = lib.aggregateUsage(USAGE_HOME, NOW);
+  // subagent haiku (-1h) entra na 5h ao lado do opus.
+  assert.deepStrictEqual(Object.keys(a.win5h.byModel).sort(),
+    ["claude-haiku-4-5-20251001", "claude-opus-4-8"]);
+  assert.strictEqual(a.win5h.byModel["claude-haiku-4-5-20251001"].short.input, 100);
+  assert.strictEqual(a.win5h.byModel["claude-haiku-4-5-20251001"].short.cacheRead, 1000);
 });

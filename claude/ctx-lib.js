@@ -392,6 +392,14 @@ function aggregateUsage(home = os.homedir(), nowMs = null) {
 
   for (const file of homeProjectFiles(home)) {
     for (const ev of usageEvents(file)) foldEvent(ev);
+
+    // E1: subagents do mesmo transcript têm usage/modelo próprios.
+    const subDir = path.join(transcriptDir(file), "subagents");
+    let subFiles = []; try { subFiles = fs.readdirSync(subDir); } catch {}
+    for (const sf of subFiles) {
+      if (!sf.endsWith(".jsonl")) continue;
+      for (const ev of usageEvents(path.join(subDir, sf))) foldEvent(ev);
+    }
   }
 
   const daily = [...byDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))
