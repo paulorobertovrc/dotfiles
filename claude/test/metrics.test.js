@@ -16,6 +16,8 @@ const FILE_TWO_MODELS = path.join(__dirname, "fixtures", "two-models",
   "cccccccc-0000-0000-0000-000000000003.jsonl");
 const FILE_SYNTH = path.join(__dirname, "fixtures", "synthetic",
   "dddddddd-0000-0000-0000-000000000004.jsonl");
+const FILE_ZERO = path.join(__dirname, "fixtures", "zero-usage",
+  "eeeeeeee-0000-0000-0000-000000000005.jsonl");
 
 test("sessionMetrics deriva contexto, turnos, cache hit e modo", () => {
   const m = lib.sessionMetrics(FILE);
@@ -60,4 +62,14 @@ test("sessionMetrics ignora mensagens sintéticas de erro 429 (E4)", () => {
   assert.strictEqual(m.byModel["<synthetic>"], undefined);
   assert.strictEqual(m.totals.output, 50);       // só o turno real conta
   assert.strictEqual(m.turns, 1);                // stub sintético não conta como turno
+});
+
+test("sessionMetrics ignora turno real com usage integralmente zero (E4)", () => {
+  // A fixture tem o turno real PRIMEIRO e a linha zerada POR ÚLTIMO — o caso
+  // perigoso: sem o filtro, "último turno vence" zeraria m.ctx no card.
+  const m = lib.sessionMetrics(FILE_ZERO);
+  assert.strictEqual(m.ctx, 100);                // linha zerada final não zera o contexto
+  assert.strictEqual(m.turns, 1);                // stub zerado não conta como turno
+  assert.strictEqual(m.totals.output, 50);
+  assert.deepStrictEqual(Object.keys(m.byModel), ["claude-opus-4-8"]);
 });

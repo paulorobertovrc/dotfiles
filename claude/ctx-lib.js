@@ -225,15 +225,26 @@ function sessionMetrics(file) {
     }
 
     const msg = o.message;
+    const u = msg && msg.usage;
     const isSynthetic = o.isApiErrorMessage || (msg && msg.model === "<synthetic>");
-    if (o.type === "assistant" && !isSynthetic) m.turns++;
+    // E4: usage integralmente zero é stub tanto quanto a sintética — não conta
+    // turno, não zera m.ctx ("último turno vence") nem entra em totals/byModel.
+    // Mesmos cinco campos de usageEvents, mais cache_creation_input_tokens
+    // (que esta função lê e as demais não).
+    const cw0 = (u && u.cache_creation) || {};
+    const isZeroUsage = !!u && u.input_tokens != null &&
+      (u.input_tokens || 0) === 0 && (u.output_tokens || 0) === 0 &&
+      (u.cache_read_input_tokens || 0) === 0 &&
+      (u.cache_creation_input_tokens || 0) === 0 &&
+      (cw0.ephemeral_5m_input_tokens || 0) === 0 &&
+      (cw0.ephemeral_1h_input_tokens || 0) === 0;
+    if (o.type === "assistant" && !isSynthetic && !isZeroUsage) m.turns++;
 
     if (msg && Array.isArray(msg.content)) {
       for (const c of msg.content) if (c && c.type === "tool_use") m.tools[c.name] = (m.tools[c.name] || 0) + 1;
     }
 
-    const u = msg && msg.usage;
-    if (u && u.input_tokens != null && !isSynthetic) {
+    if (u && u.input_tokens != null && !isSynthetic && !isZeroUsage) {
       const inp = u.input_tokens || 0, cr = u.cache_read_input_tokens || 0, cc = u.cache_creation_input_tokens || 0;
       const total = inp + cr + cc;
       if (total > peak) peak = total;
@@ -410,11 +421,23 @@ function aggregateUsage(home = os.homedir(), nowMs = null) {
   const daily = [...byDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))
     .map(([date, byModel]) => ({ date, byModel, cost: costOf(byModel) }));
 
+  // Um teto batido com N requests em voo (paralelismo/subagents) grava N linhas
+  // sintéticas idênticas — mesmo sessionId, mesmo ts ao milissegundo (observado
+  // 6x num único ms no histórico real desta máquina). Sem dedup, um evento vira
+  // N marcadores e consome o cap de 50 à toa.
+  const seenRl = new Set();
+  const rlUnique = rateLimits.filter(e => {
+    const k = e.sessionId + " " + e.ts;
+    if (seenRl.has(k)) return false;
+    seenRl.add(k);
+    return true;
+  });
+
   return {
     win5h: { byModel: win5h, cost: costOf(win5h) },
     week7d: { byModel: week7d, cost: costOf(week7d) },
     allTime: { byModel: allTime, cost: costOf(allTime) },
-    daily, rateLimits: rateLimits.sort((a, b) => b.ts - a.ts).slice(0, 50),
+    daily, rateLimits: rlUnique.sort((a, b) => b.ts - a.ts).slice(0, 50),
     oldestTs, generatedAt: now
   };
 }

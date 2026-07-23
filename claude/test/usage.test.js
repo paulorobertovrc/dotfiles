@@ -91,6 +91,17 @@ test("aggregateUsage inclui tokens de subagents (E1)", () => {
   assert.strictEqual(a.win5h.byModel["claude-haiku-4-5-20251001"].short.cacheRead, 1000);
 });
 
+test("aggregateUsage deduplica rate-limits de fan-out paralelo (mesmo sessionId+ts)", () => {
+  // agent-sub1.jsonl grava a MESMA linha sintética 2x (um teto batido com N
+  // requests em voo escreve N registros idênticos — observado 6x no histórico
+  // real). O leitor cru vê os 2 registros; o agregado colapsa em 1.
+  const SUB = path.join(USAGE_HOME, ".claude", "projects", "-fake",
+    "ffffffff-0000-0000-0000-000000000006", "subagents", "agent-sub1.jsonl");
+  assert.strictEqual(lib.rateLimitEvents(SUB).length, 2);
+  const a = lib.aggregateUsage(USAGE_HOME, NOW);
+  assert.strictEqual(a.rateLimits.length, 2);   // 1 do subagent (dedupado) + 1 do main
+});
+
 test("aggregateUsage anexa eventos de rate-limit (mais recente primeiro), incluindo os de subagents (E1)", () => {
   const a = lib.aggregateUsage(USAGE_HOME, NOW);
   // main file (-09:00) + subagent sub1 (-11:30) — ambos dentro do transcript ffffffff-...-000006.
