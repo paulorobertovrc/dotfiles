@@ -144,6 +144,12 @@
     padding: 1.25rem;
   }
   #empty { padding: 2rem; color: var(--muted); text-align: center; display: none; }
+  /* #grid/#empty têm suas próprias declarações `display` (grid / none), que
+     no cascade CSS batem o `[hidden]` do UA independente de especificidade.
+     Sem isto, alternar para a view Uso via `.hidden = true` não tem efeito
+     visual algum enquanto essas regras estiverem ativas — o que é sempre,
+     no caso do #grid. */
+  #grid[hidden], #empty[hidden] { display: none !important; }
 
   /* A pressão colore o card: a borda esquerda é o sinal que atravessa
      uma grade de vinte cards sem exigir leitura. */
