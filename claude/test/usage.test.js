@@ -90,3 +90,9 @@ test("aggregateUsage inclui tokens de subagents (E1)", () => {
   assert.strictEqual(a.win5h.byModel["claude-haiku-4-5-20251001"].short.input, 100);
   assert.strictEqual(a.win5h.byModel["claude-haiku-4-5-20251001"].short.cacheRead, 1000);
 });
+
+test("aggregateUsage anexa eventos de rate-limit (mais recente primeiro)", () => {
+  const a = lib.aggregateUsage(USAGE_HOME, NOW);
+  assert.strictEqual(a.rateLimits.length, 1);
+  assert.match(a.rateLimits[0].text, /session limit/);
+});

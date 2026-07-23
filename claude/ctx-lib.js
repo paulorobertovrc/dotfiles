@@ -373,6 +373,7 @@ function aggregateUsage(home = os.homedir(), nowMs = null) {
   const now = nowMs == null ? Date.now() : nowMs;
   const win5h = {}, week7d = {}, allTime = {};
   const byDay = new Map();
+  const rateLimits = [];
   let oldestTs = null;
 
   // Dobra um usageEvent nos 4 buckets de uma vez (acumulado + janelas + dia).
@@ -400,6 +401,8 @@ function aggregateUsage(home = os.homedir(), nowMs = null) {
       if (!sf.endsWith(".jsonl")) continue;
       for (const ev of usageEvents(path.join(subDir, sf))) foldEvent(ev);
     }
+
+    for (const e of rateLimitEvents(file)) rateLimits.push(e);
   }
 
   const daily = [...byDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))
@@ -409,7 +412,8 @@ function aggregateUsage(home = os.homedir(), nowMs = null) {
     win5h: { byModel: win5h, cost: costOf(win5h) },
     week7d: { byModel: week7d, cost: costOf(week7d) },
     allTime: { byModel: allTime, cost: costOf(allTime) },
-    daily, rateLimits: [], oldestTs, generatedAt: now
+    daily, rateLimits: rateLimits.sort((a, b) => b.ts - a.ts).slice(0, 50),
+    oldestTs, generatedAt: now
   };
 }
 
