@@ -34,3 +34,11 @@ test("usageEvents filtra turno com usage integralmente zero de um modelo real, m
   assert.strictEqual(evs[0].input, 100);
   assert.strictEqual(evs[0].output, 50);
 });
+
+test("PRICES cobre Sonnet 5 → costOf não marca parcial para Sonnet (E7)", () => {
+  const byModel = { "claude-sonnet-5": { short:
+    { input: 1e6, output: 0, cacheRead: 0, cacheCreation5m: 0, cacheCreation1h: 0 } } };
+  const c = lib.costOf(byModel);
+  assert.ok(c && c.partial === false, "Sonnet deve ter preço verificado");
+  assert.ok(c.usd > 0, "custo do Sonnet deve ser > 0");
+});

@@ -385,6 +385,34 @@ const PRICES = {
     short: { input: 10, output: 50, cacheRead: 1, cacheWrite5m: 12.5, cacheWrite1h: 20 },
     long:  { input: 10, output: 50, cacheRead: 1, cacheWrite5m: 12.5, cacheWrite1h: 20 },
   },
+  // Fonte: https://platform.claude.com/docs/en/about-claude/pricing
+  // Verificado em: 2026-07-23.
+  // Sonnet 5 tem DUAS faixas datadas na tabela oficial. Citação verbatim da nota
+  // de preço introdutório da fonte:
+  //   "Introductory pricing of $2/$10 per million input/output tokens is in
+  //   effect through August 31, 2026, after which the standard pricing of
+  //   $3/$15 per million input/output tokens will take effect."
+  // Linhas verbatim da tabela "Model pricing" (Base Input | 5m Cache Writes |
+  //   1h Cache Writes | Cache Hits & Refreshes | Output Tokens):
+  //   "Claude Sonnet 5 [through August 31, 2026]  $2 / MTok  $2.50 / MTok
+  //    $4 / MTok  $0.20 / MTok  $10 / MTok"
+  //   "Claude Sonnet 5 starting September 1, 2026  $3 / MTok  $3.75 / MTok
+  //    $6 / MTok  $0.30 / MTok  $15 / MTok"
+  // DECISÃO (revisável): usamos a faixa INTRODUTÓRIA porque é a que está em vigor
+  // hoje (2026-07-23, dentro da janela) e foi a cobrada em TODO o uso de Sonnet 5
+  // até agora — o dashboard reflete o custo real incorrido, não um preço futuro.
+  // ⚠️ TROCAR para a faixa padrão a partir de 2026-09-01: input 3, output 15,
+  //   cacheRead 0.30, cacheWrite5m 3.75, cacheWrite1h 6.
+  // Contexto longo: a seção "Long context pricing" da fonte lista Sonnet 5
+  // EXPLICITAMENTE entre os modelos com janela de 1M em preço padrão — citação
+  // verbatim: "Claude Fable 5, Claude Mythos 5, Claude Mythos Preview, Claude
+  //   Opus 4.8, Opus 4.7, Opus 4.6, Sonnet 5, and Sonnet 4.6 include the full
+  //   1M token context window at standard pricing." Por isso `long` == `short`
+  //   (preço confirmado, não estimativa — mesma cláusula que Opus/Fable).
+  "claude-sonnet-5": {
+    short: { input: 2, output: 10, cacheRead: 0.2, cacheWrite5m: 2.5, cacheWrite1h: 4 },
+    long:  { input: 2, output: 10, cacheRead: 0.2, cacheWrite5m: 2.5, cacheWrite1h: 4 },
+  },
   "claude-haiku-4-5-20251001": {
     short: { input: 1, output: 5, cacheRead: 0.1, cacheWrite5m: 1.25, cacheWrite1h: 2 },
   },
