@@ -461,18 +461,23 @@ function aggregateUsage(home = os.homedir(), nowMs = null) {
   const byDay = new Map();
   let oldestTs = null;
 
-  for (const file of homeProjectFiles(home)) {
-    for (const ev of usageEvents(file)) {
-      if (ev.ts && (oldestTs == null || ev.ts < oldestTs)) oldestTs = ev.ts;
-      addEventToByModel(allTime, ev);
-      if (now - ev.ts <= FIVE_H) addEventToByModel(win5h, ev);
-      if (now - ev.ts <= SEVEN_D) addEventToByModel(week7d, ev);
-      if (now - ev.ts <= THIRTY_D) {
-        const k = dayKey(ev.ts);
-        let bm = byDay.get(k); if (!bm) byDay.set(k, bm = {});
-        addEventToByModel(bm, ev);
-      }
+  // Dobra um usageEvent nos 4 buckets de uma vez (acumulado + janelas + dia).
+  // Único ponto de bucketing — Task 6 reusa esta mesma closure para os
+  // eventos de subagents, em vez de duplicar a lógica.
+  const foldEvent = (ev) => {
+    if (ev.ts && (oldestTs == null || ev.ts < oldestTs)) oldestTs = ev.ts;
+    addEventToByModel(allTime, ev);
+    if (now - ev.ts <= FIVE_H) addEventToByModel(win5h, ev);
+    if (now - ev.ts <= SEVEN_D) addEventToByModel(week7d, ev);
+    if (now - ev.ts <= THIRTY_D) {
+      const k = dayKey(ev.ts);
+      let bm = byDay.get(k); if (!bm) byDay.set(k, bm = {});
+      addEventToByModel(bm, ev);
     }
+  };
+
+  for (const file of homeProjectFiles(home)) {
+    for (const ev of usageEvents(file)) foldEvent(ev);
   }
 
   const daily = [...byDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))
@@ -513,7 +518,7 @@ Subagents rodam em `<transcript-dir>/subagents/agent-*.jsonl` com usage (e model
 - Test: `claude/test/usage.test.js`
 
 **Interfaces:**
-- Consumes: `usageEvents`, `transcriptDir` (existente).
+- Consumes: `usageEvents`, `transcriptDir` (existente), a closure `foldEvent` já definida dentro de `aggregateUsage` (Task 5) — reusar, não duplicar sua lógica de bucketing.
 - Produces: mesmo shape; agora inclui tokens dos subagents nos buckets.
 
 - [ ] **Step 1: Criar a fixture do subagent (turno em −1h, modelo haiku)**
@@ -548,7 +553,7 @@ Expected: FAIL — `win5h.byModel` só tem opus (subagent ignorado).
 
 - [ ] **Step 4: Varrer subagents no `aggregateUsage`**
 
-Em `aggregateUsage`, dentro do loop `for (const file of homeProjectFiles(home))`, após o loop de `usageEvents(file)`, acrescentar:
+Em `aggregateUsage`, dentro do loop `for (const file of homeProjectFiles(home))`, após o loop de `usageEvents(file)`, acrescentar (reusando a closure `foldEvent` já definida no Step 4 da Task 5 — não repetir a lógica de bucketing):
 
 ```js
     // E1: subagents do mesmo transcript têm usage/modelo próprios.
@@ -556,17 +561,7 @@ Em `aggregateUsage`, dentro do loop `for (const file of homeProjectFiles(home))`
     let subFiles = []; try { subFiles = fs.readdirSync(subDir); } catch {}
     for (const sf of subFiles) {
       if (!sf.endsWith(".jsonl")) continue;
-      for (const ev of usageEvents(path.join(subDir, sf))) {
-        if (ev.ts && (oldestTs == null || ev.ts < oldestTs)) oldestTs = ev.ts;
-        addEventToByModel(allTime, ev);
-        if (now - ev.ts <= FIVE_H) addEventToByModel(win5h, ev);
-        if (now - ev.ts <= SEVEN_D) addEventToByModel(week7d, ev);
-        if (now - ev.ts <= THIRTY_D) {
-          const k = dayKey(ev.ts);
-          let bm = byDay.get(k); if (!bm) byDay.set(k, bm = {});
-          addEventToByModel(bm, ev);
-        }
-      }
+      for (const ev of usageEvents(path.join(subDir, sf))) foldEvent(ev);
     }
 ```
 
