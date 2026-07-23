@@ -399,7 +399,9 @@ function aggregateUsage(home = os.homedir(), nowMs = null) {
     let subFiles = []; try { subFiles = fs.readdirSync(subDir); } catch {}
     for (const sf of subFiles) {
       if (!sf.endsWith(".jsonl")) continue;
-      for (const ev of usageEvents(path.join(subDir, sf))) foldEvent(ev);
+      const subFile = path.join(subDir, sf);
+      for (const ev of usageEvents(subFile)) foldEvent(ev);
+      for (const e of rateLimitEvents(subFile)) rateLimits.push(e);
     }
 
     for (const e of rateLimitEvents(file)) rateLimits.push(e);

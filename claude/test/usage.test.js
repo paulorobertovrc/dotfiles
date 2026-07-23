@@ -91,8 +91,14 @@ test("aggregateUsage inclui tokens de subagents (E1)", () => {
   assert.strictEqual(a.win5h.byModel["claude-haiku-4-5-20251001"].short.cacheRead, 1000);
 });
 
-test("aggregateUsage anexa eventos de rate-limit (mais recente primeiro)", () => {
+test("aggregateUsage anexa eventos de rate-limit (mais recente primeiro), incluindo os de subagents (E1)", () => {
   const a = lib.aggregateUsage(USAGE_HOME, NOW);
-  assert.strictEqual(a.rateLimits.length, 1);
+  // main file (-09:00) + subagent sub1 (-11:30) — ambos dentro do transcript ffffffff-...-000006.
+  assert.strictEqual(a.rateLimits.length, 2);
+  // mais recente primeiro: evento do subagent (11:30) antes do evento do arquivo principal (09:00).
   assert.match(a.rateLimits[0].text, /session limit/);
+  assert.match(a.rateLimits[0].text, /resets 3:30pm/);
+  assert.match(a.rateLimits[1].text, /session limit/);
+  assert.match(a.rateLimits[1].text, /resets 1:00pm/);
+  assert.ok(a.rateLimits[0].ts > a.rateLimits[1].ts);
 });
