@@ -303,6 +303,37 @@ function usageEvents(file) {
   return out;
 }
 
+const rateLimitCache = new Map();
+
+// rateLimitEvents(file) — só o evento sintético de TETO DE SESSÃO (error
+// "rate_limit" + isApiErrorMessage + texto legível "…resets HH:MM"). O
+// rate_limit_error cru ("Rate limited") é throttling transiente de API → ruído,
+// ignorado. Weekly-limit previsto mas formato não observado: capturamos só o
+// texto literal, sem codificar estrutura presumida. Cacheado por mtime.
+function rateLimitEvents(file) {
+  let mtime = 0; try { mtime = fs.statSync(file).mtimeMs; } catch { return []; }
+  const hit = rateLimitCache.get(file);
+  if (hit && hit.mtime === mtime) return hit.value;
+
+  const out = [];
+  let txt; try { txt = fs.readFileSync(file, "utf8"); } catch { return []; }
+  for (const line of txt.split("\n")) {
+    if (!line || line.indexOf("rate_limit") < 0) continue;
+    let o; try { o = JSON.parse(line); } catch { continue; }
+    if (o.error !== "rate_limit" || !o.isApiErrorMessage) continue;
+    let text = "";
+    const content = o.message && o.message.content;
+    if (Array.isArray(content)) {
+      const t = content.find(c => c && c.type === "text");
+      if (t) text = t.text || "";
+    }
+    out.push({ ts: Date.parse(o.timestamp || 0) || 0, text,
+               sessionId: o.sessionId || "", cwd: o.cwd || "" });
+  }
+  rateLimitCache.set(file, { mtime, value: out });
+  return out;
+}
+
 const timelineCache = new Map();
 
 // timeline(file) — extrai um ponto por turno de assistant (mais compactMetadata),
@@ -506,6 +537,6 @@ function workflowsFor(file) {
 
 module.exports = {
   TIERS, roots, indexAll, liveProcs, readInfo, whereName, tierFor, scanWindow, windowFor, tailRead,
-  fullArgs, procCwd, liveSessions, procStartOf, sessionMetrics, usageEvents, timeline, trend,
+  fullArgs, procCwd, liveSessions, procStartOf, sessionMetrics, usageEvents, rateLimitEvents, timeline, trend,
   PRICES, costOf, subagentsFor, backgroundJobs, workflowsFor, transcriptDir, readSettings
 };

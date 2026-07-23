@@ -9,6 +9,8 @@ const FILE_SYNTH = path.join(__dirname, "fixtures", "synthetic",
   "dddddddd-0000-0000-0000-000000000004.jsonl");
 const FILE_ZERO = path.join(__dirname, "fixtures", "zero-usage",
   "eeeeeeee-0000-0000-0000-000000000005.jsonl");
+const FILE_RL = path.join(__dirname, "fixtures", "ratelimit",
+  "eeeeeeee-0000-0000-0000-000000000005.jsonl");
 
 test("usageEvents extrai um registro por turno com split de tokens", () => {
   const evs = lib.usageEvents(FILE_TWO);
@@ -33,6 +35,14 @@ test("usageEvents filtra turno com usage integralmente zero de um modelo real, m
   assert.strictEqual(evs[0].model, "claude-opus-4-8");
   assert.strictEqual(evs[0].input, 100);
   assert.strictEqual(evs[0].output, 50);
+});
+
+test("rateLimitEvents captura só o teto de sessão, ignora rate_limit_error cru", () => {
+  const evs = lib.rateLimitEvents(FILE_RL);
+  assert.strictEqual(evs.length, 1);
+  assert.match(evs[0].text, /session limit/);
+  assert.match(evs[0].text, /resets 12:30pm/);
+  assert.ok(evs[0].ts > 0);
 });
 
 test("PRICES cobre Sonnet 5 → costOf não marca parcial para Sonnet (E7)", () => {
