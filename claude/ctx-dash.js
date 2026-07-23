@@ -58,6 +58,17 @@ function createServer(opts = {}) {
   const home = opts.home || os.homedir();
   const clients = new Set();
 
+  let usageCache = null, usageComputing = false;
+  const computeUsage = () => {
+    usageComputing = true;
+    setImmediate(() => {
+      try { usageCache = lib.aggregateUsage(home); } catch { usageCache = null; }
+      usageComputing = false;
+      notify();   // avisa SSE → cliente re-busca /api/usage
+    });
+  };
+  const onWatch = () => { usageCache = null; notify(); };
+
   const srv = http.createServer((req, res) => {
     // Proteção contra DNS rebinding: o servidor faz bind em 127.0.0.1, mas sem
     // validar o Host uma página maliciosa aberta no browser do usuário poderia
@@ -92,6 +103,12 @@ function createServer(opts = {}) {
       });
     }
 
+    if (url.pathname === "/api/usage") {
+      if (usageCache) return sendJson(res, usageCache);
+      if (!usageComputing) computeUsage();
+      return sendJson(res, { computing: true });
+    }
+
     if (url.pathname === "/api/events") {
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
       res.write(": conectado\n\n");
@@ -115,11 +132,11 @@ function createServer(opts = {}) {
   const watched = new Map();
   const attach = () => {
     for (const root of lib.roots(home)) {
-      if (!watched.has(root)) { try { watched.set(root, fs.watch(root, notify)); } catch {} }
+      if (!watched.has(root)) { try { watched.set(root, fs.watch(root, onWatch)); } catch {} }
       let projs = []; try { projs = fs.readdirSync(root); } catch {}
       for (const p of projs) {
         const d = path.join(root, p);
-        if (!watched.has(d)) { try { watched.set(d, fs.watch(d, notify)); } catch {} }
+        if (!watched.has(d)) { try { watched.set(d, fs.watch(d, onWatch)); } catch {} }
       }
     }
   };

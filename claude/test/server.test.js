@@ -81,6 +81,26 @@ test("servidor rejeita Host forjado (403) e aceita Host 127.0.0.1 normal (200) �
   await new Promise(r => srv.close(r));
 });
 
+test("/api/usage computa assíncrono e depois serve o agregado", async () => {
+  const srv = createServer({ home: HOME, isAlive: () => true });
+  await new Promise(r => srv.listen(0, "127.0.0.1", r));
+  const port = srv.address().port;
+
+  const first = await (await fetch(`http://127.0.0.1:${port}/api/usage`)).json();
+  assert.strictEqual(first.computing, true);
+
+  // Espera o compute (setImmediate) concluir, com poll curto.
+  let data = null;
+  for (let i = 0; i < 50 && !data; i++) {
+    const d = await (await fetch(`http://127.0.0.1:${port}/api/usage`)).json();
+    if (!d.computing) data = d; else await new Promise(r => setTimeout(r, 20));
+  }
+  assert.ok(data, "usage deve ficar pronto");
+  assert.ok(data.allTime && data.win5h && Array.isArray(data.daily));
+
+  await new Promise(r => srv.close(r));
+});
+
 test("listenWithFallback chama o callback UMA vez, com a porta realmente aberta", async () => {
   // Ocupa uma porta efêmera para forçar o EADDRINUSE.
   const blocker = http.createServer(() => {});
